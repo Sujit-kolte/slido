@@ -1,4 +1,8 @@
 import dotenv from "dotenv";
+import dns from "dns";
+
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
+
 dotenv.config();
 
 import mongoose from "mongoose";
@@ -7,18 +11,20 @@ import { Server } from "socket.io";
 import app from "./app.js";
 
 // MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  maxPoolSize: 10,
-  serverSelectionTimeoutMS: 5000
-}).then(() => console.log("✅ MongoDB Connected"));
+mongoose
+  .connect(process.env.MONGO_URI, {
+    maxPoolSize: 10,
+    serverSelectionTimeoutMS: 5000,
+  })
+  .then(() => console.log("✅ MongoDB Connected"));
 
 // HTTP + WebSocket
 const server = http.createServer(app);
 
 export const io = new Server(server, {
   cors: {
-    origin: "*"
-  }
+    origin: "*",
+  },
 });
 
 io.on("connection", (socket) => {

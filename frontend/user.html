@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Join Session</title>
+    <style>
+      /* CSS STYLING */
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background-color: #f3f4f6;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      .card {
+        background: white;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        width: 100%;
+        max-width: 350px;
+        text-align: center;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #1f2937;
+        margin-bottom: 5px;
+      }
+      p {
+        color: #6b7280;
+        margin-bottom: 25px;
+        font-size: 14px;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 15px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-sizing: border-box; /* Ensures padding doesn't break width */
+        font-size: 16px;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
+        background: linear-gradient(135deg, #059669, #10b981);
+        color: white;
+        transition: opacity 0.2s;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .error-msg {
+        color: #dc2626;
+        font-size: 14px;
+        margin-top: 15px;
+        min-height: 20px; /* Prevents jumping */
+      }
+
+      .back-link {
+        display: block;
+        margin-top: 20px;
+        color: #666;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .back-link:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Join Quiz</h1>
+      <p>Enter your details to verify session</p>
+
+      <input type="text" id="userName" placeholder="Your Full Name" />
+      <input
+        type="text"
+        id="sessionCode"
+        placeholder="Session Code (e.g. QUIZ-101)" />
+
+      <button id="joinBtn" onclick="handleJoin()">Join Session</button>
+
+      <div id="msg" class="error-msg"></div>
+      <a href="index.html" class="back-link">← Back to Home</a>
+    </div>
+
+    <script>
+      async function handleJoin() {
+        const name = document.getElementById("userName").value.trim();
+        const code = document.getElementById("sessionCode").value.trim();
+        const msgEl = document.getElementById("msg");
+        const btn = document.getElementById("joinBtn");
+
+        // 1. Basic Client-Side Validation
+        if (!name) return (msgEl.innerText = "Please enter your name");
+        if (!code) return (msgEl.innerText = "Please enter the Session Code");
+
+        // UI Loading State
+        msgEl.innerText = "";
+        btn.disabled = true;
+        btn.innerText = "Verifying...";
+
+        try {
+          // 2. Call Backend API
+          // This route checks if Session is ACTIVE and creates the participant
+          const res = await fetch(
+            "http://localhost:5000/api/participants/join",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                name: name,
+                sessionCode: code,
+              }),
+            },
+          );
+
+          const data = await res.json();
+
+          if (res.ok) {
+            // 3. SUCCESS: Save Data & Redirect
+            // We save these so 'play.html' knows who the user is
+            sessionStorage.setItem("PARTICIPANT_ID", data.data.participantId);
+            sessionStorage.setItem("SESSION_CODE", code);
+            sessionStorage.setItem("PLAYER_NAME", name);
+
+            // Navigate to the Game Page
+            window.location.href = "play.html";
+          } else {
+            // 4. ERROR: Show message (e.g. "Session inactive" or "Not found")
+            msgEl.innerText = data.message || "Join Failed";
+            btn.disabled = false;
+            btn.innerText = "Join Session";
+          }
+        } catch (e) {
+          console.error(e);
+          msgEl.innerText = "Network Error. Is the backend running?";
+          btn.disabled = false;
+          btn.innerText = "Join Session";
+        }
+      }
+    </script>
+  </body>
+</html>

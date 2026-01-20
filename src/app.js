@@ -7,7 +7,7 @@ import errorHandler from "./middlewares/error.middleware.js";
 
 const app = express();
 
-// 🟢 FIX FOR RENDER DEPLOYMENT
+// 🟢 CRITICAL FIX FOR RENDER
 // This tells Express to trust the Load Balancer so Rate Limit works correctly
 app.set("trust proxy", 1);
 
@@ -15,6 +15,7 @@ app.use(helmet());
 app.use(cors({ origin: "*" }));
 
 // ✅ EVENT SAFE RATE LIMIT
+// Now this will work because we trusted the proxy above
 app.use(
   rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute

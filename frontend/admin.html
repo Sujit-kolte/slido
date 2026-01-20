@@ -65,10 +65,16 @@
         opacity: 0.9;
       }
 
+      button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+      }
+
       .error {
         color: #dc2626;
         margin-top: 15px;
         font-size: 14px;
+        min-height: 20px;
       }
       .back-link {
         display: block;
@@ -89,52 +95,65 @@
       <label>Enter Passcode</label>
       <input type="password" id="passcode" placeholder="Admin Passcode..." />
 
-      <button onclick="verifyPasscode()">Verify & Login</button>
+      <button id="verifyBtn" onclick="verifyPasscode()">Verify & Login</button>
 
       <p id="errorMsg" class="error"></p>
       <a href="index.html" class="back-link">← Back to Home</a>
     </div>
 
     <script>
+      // 🟢 CONFIGURATION
+      // Ensure this matches your Render URL exactly
+      const API_URL = "https://slido-9mg1.onrender.com/api";
+
       async function verifyPasscode() {
         const passcode = document.getElementById("passcode").value;
         const errorEl = document.getElementById("errorMsg");
+        const btn = document.getElementById("verifyBtn");
 
+        // 1. Basic Check
         if (!passcode) {
           errorEl.innerText = "Please enter the passcode";
           return;
         }
 
-        errorEl.innerText = "Verifying...";
+        // 2. UI Loading State
+        errorEl.innerText = "Connecting to server...";
+        btn.disabled = true; // Disable button
+        btn.innerText = "Verifying...";
 
         try {
-          // 1. Send Request to Backend
-          const response = await fetch(
-            "https://slido-9mg1.onrender.com/api/admin/adminAuth",
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "admin-passcode": passcode,
-              },
+          // 3. Send Request to Backend Route
+          // Make sure your backend has a route for /admin/verify-passcode
+          const response = await fetch(`${API_URL}/admin/verify-passcode`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "admin-passcode": passcode,
             },
-          );
+          });
 
           if (response.ok) {
-            // 2. SUCCESS: Save passcode and Navigate
-            // We save it in sessionStorage so the next page can use it to add questions
+            // 4. SUCCESS: Save & Redirect
             sessionStorage.setItem("ADMIN_PASSCODE", passcode);
-
-            // Redirect to the dashboard page
             window.location.href = "dashboard.html";
           } else {
-            // 3. FAILURE: Show error
+            // 5. FAILURE: Show Error from Backend
             const data = await response.json();
             errorEl.innerText = data.message || "Invalid Passcode";
+            resetButton();
           }
         } catch (err) {
-          console.error(err);
-          errorEl.innerText = "Server Error. Is backend running?";
+          // 6. NETWORK ERROR (Server is sleeping or down)
+          console.error("Login Error:", err);
+          errorEl.innerText =
+            "Network Error. Server might be sleeping (wait 30s and try again).";
+          resetButton();
+        }
+
+        function resetButton() {
+          btn.disabled = false;
+          btn.innerText = "Verify & Login";
         }
       }
     </script>

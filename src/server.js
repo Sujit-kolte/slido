@@ -7,6 +7,12 @@ import app from "./app.js";
 import Question from "./models/question.model.js";
 import Session from "./models/session.model.js";
 import dns from "node:dns";
+import adminRoutes from "./routes/admin.routes.js";
+
+// ... other code ...
+
+// USE THE ROUTE
+app.use("/api/admin", adminRoutes);
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 dotenv.config();

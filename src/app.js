@@ -7,15 +7,21 @@ import errorHandler from "./middlewares/error.middleware.js";
 
 const app = express();
 
+// 🟢 FIX FOR RENDER DEPLOYMENT
+// This tells Express to trust the Load Balancer so Rate Limit works correctly
+app.set("trust proxy", 1);
+
 app.use(helmet());
-app.use(cors({ origin: "*"}));
+app.use(cors({ origin: "*" }));
 
 // ✅ EVENT SAFE RATE LIMIT
-app.use(rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 1000,              // ~500 users safe
-  message: "Too many requests, try again shortly"
-}));
+app.use(
+  rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 1000, // ~500 users safe
+    message: "Too many requests, try again shortly",
+  }),
+);
 
 app.use(express.json({ limit: "10kb" }));
 app.use("/api", routes);

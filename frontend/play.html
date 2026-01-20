@@ -1,212 +1,212 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>GDG Live Quiz</title>
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <title>GDG Live Quiz</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-  <style>
-    body {
-      font-family: "Segoe UI", sans-serif;
-      background: #111827;
-      color: white;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      margin: 0;
-    }
-    .container {
-      width: 100%;
-      max-width: 420px;
-      padding: 20px;
-      text-align: center;
-    }
-    .timer {
-      font-size: 22px;
-      font-weight: bold;
-      color: #60a5fa;
-      text-align: right;
-    }
-    .question {
-      font-size: 24px;
-      margin: 20px 0;
-    }
-    .option {
-      width: 100%;
-      padding: 16px;
-      margin-bottom: 12px;
-      background: #1f2937;
-      border: 2px solid #374151;
-      color: white;
-      border-radius: 10px;
-      font-size: 16px;
-      cursor: pointer;
-      text-align: left;
-    }
-    .option:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .overlay {
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.9);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 50;
-      text-align: center;
-    }
-    .hidden { display: none; }
-  </style>
-</head>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #111827;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+      .container {
+        width: 100%;
+        max-width: 420px;
+        padding: 20px;
+        text-align: center;
+      }
+      .timer {
+        font-size: 22px;
+        font-weight: bold;
+        color: #60a5fa;
+        text-align: right;
+      }
+      .question {
+        font-size: 24px;
+        margin: 20px 0;
+      }
+      .option {
+        width: 100%;
+        padding: 16px;
+        margin-bottom: 12px;
+        background: #1f2937;
+        border: 2px solid #374151;
+        color: white;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .option:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.9);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 50;
+        text-align: center;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
 
-<body>
+  <body>
+    <div class="container" id="gameArea">
+      <div class="timer" id="timer">--</div>
+      <div class="question" id="questionText">Waiting for host…</div>
+      <div id="options"></div>
+    </div>
 
-<div class="container" id="gameArea">
-  <div class="timer" id="timer">--</div>
-  <div class="question" id="questionText">Waiting for host…</div>
-  <div id="options"></div>
-</div>
+    <div class="overlay hidden" id="resultOverlay">
+      <h1 id="resultTitle"></h1>
+      <p id="correctAnswer"></p>
+      <p style="opacity: 0.7">Next question starting…</p>
+    </div>
 
-<div class="overlay hidden" id="resultOverlay">
-  <h1 id="resultTitle"></h1>
-  <p id="correctAnswer"></p>
-  <p style="opacity:.7">Next question starting…</p>
-</div>
+    <script>
+      let hasSubmitted = false;
 
-<script>
-  let hasSubmitted = false;
-
-/* =====================
+      /* =====================
    SESSION
 ===================== */
-const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
-const PARTICIPANT_ID = sessionStorage.getItem("PARTICIPANT_ID");
+      const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
+      const PARTICIPANT_ID = sessionStorage.getItem("PARTICIPANT_ID");
 
-if (!SESSION_CODE || !PARTICIPANT_ID) {
-  alert("Session expired. Please rejoin.");
-  location.href = "user.html";
-}
+      if (!SESSION_CODE || !PARTICIPANT_ID) {
+        alert("Session expired. Please rejoin.");
+        location.href = "user.html";
+      }
 
-/* =====================
+      /* =====================
    SOCKET
 ===================== */
-const socket = io("http://localhost:5000", {
-  transports: ["websocket"],
-  reconnection: true,
-  reconnectionAttempts: 10
-});
+      const socket = io("https://slido-9mg1.onrender.com", {
+        transports: ["websocket"],
+        reconnection: true,
+        reconnectionAttempts: 10,
+      });
 
-let currentQuestionId = null;
-let timeLeft = 0;
-let timerInterval = null;
-let myAnswer = null;
+      let currentQuestionId = null;
+      let timeLeft = 0;
+      let timerInterval = null;
+      let myAnswer = null;
 
-/* CONNECT + JOIN + SYNC */
-socket.on("connect", () => {
-  socket.emit("join:session", SESSION_CODE);
-  socket.emit("sync:state", SESSION_CODE);
-});
+      /* CONNECT + JOIN + SYNC */
+      socket.on("connect", () => {
+        socket.emit("join:session", SESSION_CODE);
+        socket.emit("sync:state", SESSION_CODE);
+      });
 
-/* =====================
+      /* =====================
    QUESTION
 ===================== */
-socket.on("game:question", (data) => {
-  document.getElementById("resultOverlay").classList.add("hidden");
+      socket.on("game:question", (data) => {
+        document.getElementById("resultOverlay").classList.add("hidden");
 
-  clearInterval(timerInterval);
-  myAnswer = null;
+        clearInterval(timerInterval);
+        myAnswer = null;
 
-  currentQuestionId = data.question._id;
-  timeLeft = data.time;
+        currentQuestionId = data.question._id;
+        timeLeft = data.time;
 
-  document.getElementById("questionText").innerText =
-   data.qNum
-  ? `Q${data.qNum}: ${data.question.questionText}`
-  : data.question.questionText
+        document.getElementById("questionText").innerText = data.qNum
+          ? `Q${data.qNum}: ${data.question.questionText}`
+          : data.question.questionText;
 
+        const optionsDiv = document.getElementById("options");
+        optionsDiv.innerHTML = "";
 
-  const optionsDiv = document.getElementById("options");
-  optionsDiv.innerHTML = "";
+        data.question.options.forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.className = "option";
+          btn.innerText = opt.text;
+          btn.onclick = () => submitAnswer(opt.text, btn);
+          optionsDiv.appendChild(btn);
+        });
 
-  data.question.options.forEach(opt => {
-    const btn = document.createElement("button");
-    btn.className = "option";
-    btn.innerText = opt.text;
-    btn.onclick = () => submitAnswer(opt.text, btn);
-    optionsDiv.appendChild(btn);
-  });
+        startTimer();
+      });
 
-  startTimer();
-});
-
-/* =====================
+      /* =====================
    SUBMIT ANSWER
 ===================== */
-async function submitAnswer(answer, btn) {
-  if (hasSubmitted) return;
-  hasSubmitted = true;
+      async function submitAnswer(answer, btn) {
+        if (hasSubmitted) return;
+        hasSubmitted = true;
 
-  document.querySelectorAll(".option").forEach(b => b.disabled = true);
-  btn.style.background = "#2563eb";
-  myAnswer = answer;
+        document
+          .querySelectorAll(".option")
+          .forEach((b) => (b.disabled = true));
+        btn.style.background = "#2563eb";
+        myAnswer = answer;
 
-  await fetch("http://localhost:5000/api/participants/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      participantId: PARTICIPANT_ID,
-      questionId: currentQuestionId,
-      selectedOption: answer,
-      timeLeft
-    })
-  });
-}
+        await fetch("http://localhost:5000/api/participants/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participantId: PARTICIPANT_ID,
+            questionId: currentQuestionId,
+            selectedOption: answer,
+            timeLeft,
+          }),
+        });
+      }
 
-/* =====================
+      /* =====================
    RESULT
 ===================== */
-socket.on("game:result", (data) => {
-  document.getElementById("resultOverlay").classList.remove("hidden");
+      socket.on("game:result", (data) => {
+        document.getElementById("resultOverlay").classList.remove("hidden");
 
-  document.getElementById("correctAnswer").innerText =
-    `Correct Answer: ${data.correctAnswer}`;
+        document.getElementById("correctAnswer").innerText =
+          `Correct Answer: ${data.correctAnswer}`;
 
-  const title = document.getElementById("resultTitle");
-  if (myAnswer === data.correctAnswer) {
-    title.innerText = "🎉 Correct!";
-    title.style.color = "#4ade80";
-  } else if (myAnswer) {
-    title.innerText = "❌ Wrong";
-    title.style.color = "#ef4444";
-  } else {
-    title.innerText = "⏰ Time Up";
-  }
-});
+        const title = document.getElementById("resultTitle");
+        if (myAnswer === data.correctAnswer) {
+          title.innerText = "🎉 Correct!";
+          title.style.color = "#4ade80";
+        } else if (myAnswer) {
+          title.innerText = "❌ Wrong";
+          title.style.color = "#ef4444";
+        } else {
+          title.innerText = "⏰ Time Up";
+        }
+      });
 
-/* =====================
+      /* =====================
    TIMER
 ===================== */
-function startTimer() {
-  document.getElementById("timer").innerText = `${timeLeft}s`;
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    document.getElementById("timer").innerText = `${timeLeft}s`;
-    if (timeLeft <= 0) clearInterval(timerInterval);
-  }, 1000);
-}
+      function startTimer() {
+        document.getElementById("timer").innerText = `${timeLeft}s`;
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          document.getElementById("timer").innerText = `${timeLeft}s`;
+          if (timeLeft <= 0) clearInterval(timerInterval);
+        }, 1000);
+      }
 
-/* =====================
+      /* =====================
    GAME OVER
 ===================== */
-socket.on("game:over", () => {
-  document.body.innerHTML =
-    "<h1 style='margin:auto'>🎉 Quiz Over! Thank you for playing.</h1>";
-});
-</script>
-
-</body>
+      socket.on("game:over", () => {
+        document.body.innerHTML =
+          "<h1 style='margin:auto'>🎉 Quiz Over! Thank you for playing.</h1>";
+      });
+    </script>
+  </body>
 </html>

@@ -43,7 +43,7 @@
         margin-bottom: 15px;
         border: 1px solid #d1d5db;
         border-radius: 6px;
-        box-sizing: border-box; /* Ensures padding doesn't break width */
+        box-sizing: border-box;
         font-size: 16px;
       }
 
@@ -72,7 +72,7 @@
         color: #dc2626;
         font-size: 14px;
         margin-top: 15px;
-        min-height: 20px; /* Prevents jumping */
+        min-height: 20px;
       }
 
       .back-link {
@@ -122,7 +122,6 @@
 
         try {
           // 2. Call Backend API
-          // This route checks if Session is ACTIVE and creates the participant
           const res = await fetch(
             "http://localhost:5000/api/participants/join",
             {
@@ -139,15 +138,20 @@
 
           if (res.ok) {
             // 3. SUCCESS: Save Data & Redirect
-            // We save these so 'play.html' knows who the user is
             sessionStorage.setItem("PARTICIPANT_ID", data.data.participantId);
             sessionStorage.setItem("SESSION_CODE", code);
             sessionStorage.setItem("PLAYER_NAME", name);
 
+            // 🟢 CRITICAL FIX: Save the Unique Code (P001, P002, etc.)
+            // This is what allows 'play.html' to display "Rahul-P001"
+            if (data.data.uniqueCode) {
+              sessionStorage.setItem("PLAYER_CODE", data.data.uniqueCode);
+            }
+
             // Navigate to the Game Page
             window.location.href = "play.html";
           } else {
-            // 4. ERROR: Show message (e.g. "Session inactive" or "Not found")
+            // 4. ERROR: Show message
             msgEl.innerText = data.message || "Join Failed";
             btn.disabled = false;
             btn.innerText = "Join Session";

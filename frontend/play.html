@@ -1,313 +1,212 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quiz Player</title>
-    <style>
-      /* CSS STYLING */
-      body {
-        font-family: "Segoe UI", sans-serif;
-        background: #f3f4f6;
-        display: flex;
-        justify-content: center;
-        padding-top: 50px;
-        min-height: 100vh;
-        margin: 0;
-      }
+<head>
+  <meta charset="UTF-8" />
+  <title>GDG Live Quiz</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-      .container {
-        width: 100%;
-        max-width: 600px;
-        padding: 20px;
-      }
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: #111827;
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .container {
+      width: 100%;
+      max-width: 420px;
+      padding: 20px;
+      text-align: center;
+    }
+    .timer {
+      font-size: 22px;
+      font-weight: bold;
+      color: #60a5fa;
+      text-align: right;
+    }
+    .question {
+      font-size: 24px;
+      margin: 20px 0;
+    }
+    .option {
+      width: 100%;
+      padding: 16px;
+      margin-bottom: 12px;
+      background: #1f2937;
+      border: 2px solid #374151;
+      color: white;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .option:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+      text-align: center;
+    }
+    .hidden { display: none; }
+  </style>
+</head>
 
-      .card {
-        background: white;
-        padding: 30px;
-        border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        text-align: center;
-      }
+<body>
 
-      h1 {
-        color: #1f2937;
-        margin-bottom: 5px;
-        margin-top: 0;
-      }
+<div class="container" id="gameArea">
+  <div class="timer" id="timer">--</div>
+  <div class="question" id="questionText">Waiting for host…</div>
+  <div id="options"></div>
+</div>
 
-      /* Header Info */
-      .info-bar {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 20px;
-        font-size: 14px;
-        color: #6b7280;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-      }
-      .badge {
-        background: #e0f2fe;
-        color: #0284c7;
-        padding: 4px 10px;
-        border-radius: 12px;
-        font-weight: bold;
-      }
+<div class="overlay hidden" id="resultOverlay">
+  <h1 id="resultTitle"></h1>
+  <p id="correctAnswer"></p>
+  <p style="opacity:.7">Next question starting…</p>
+</div>
 
-      /* Question UI */
-      .q-text {
-        font-size: 22px;
-        font-weight: bold;
-        margin: 30px 0;
-        color: #111;
-      }
+<script>
+  let hasSubmitted = false;
 
-      .option-btn {
-        display: block;
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 12px;
-        border: 2px solid #e5e7eb;
-        border-radius: 8px;
-        background: white;
-        cursor: pointer;
-        font-size: 17px;
-        text-align: left;
-        transition: all 0.2s;
-        color: #374151;
-      }
-      .option-btn:hover {
-        background-color: #f9fafb;
-        border-color: #d1d5db;
-      }
-      .option-btn:disabled {
-        cursor: not-allowed;
-        opacity: 0.7;
-      }
+/* =====================
+   SESSION
+===================== */
+const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
+const PARTICIPANT_ID = sessionStorage.getItem("PARTICIPANT_ID");
 
-      /* Feedback Colors */
-      .correct {
-        background-color: #dcfce7 !important;
-        border-color: #22c55e !important;
-        color: #15803d !important;
-      }
-      .wrong {
-        background-color: #fee2e2 !important;
-        border-color: #ef4444 !important;
-        color: #b91c1c !important;
-      }
+if (!SESSION_CODE || !PARTICIPANT_ID) {
+  alert("Session expired. Please rejoin.");
+  location.href = "user.html";
+}
 
-      .hidden {
-        display: none;
-      }
+/* =====================
+   SOCKET
+===================== */
+const socket = io("http://localhost:5000", {
+  transports: ["websocket"],
+  reconnection: true,
+  reconnectionAttempts: 10
+});
 
-      /* Next Button */
-      .next-btn {
-        background-color: #2563eb;
-        color: white;
-        border: none;
-        padding: 12px 30px;
-        border-radius: 6px;
-        font-size: 16px;
-        cursor: pointer;
-        margin-top: 20px;
-        font-weight: bold;
-      }
-      .next-btn:hover {
-        background-color: #1d4ed8;
-      }
+let currentQuestionId = null;
+let timeLeft = 0;
+let timerInterval = null;
+let myAnswer = null;
 
-      .status-msg {
-        margin-top: 20px;
-        font-weight: bold;
-        min-height: 24px;
-      }
-    </style>
-  </head>
-  <body>
-    <div class="container">
-      <div class="card">
-        <div class="info-bar">
-          <span id="playerDisplay">Player: ...</span>
-          <span class="badge" id="sessionDisplay">Code: ...</span>
-        </div>
+/* CONNECT + JOIN + SYNC */
+socket.on("connect", () => {
+  socket.emit("join:session", SESSION_CODE);
+  socket.emit("sync:state", SESSION_CODE);
+});
 
-        <div id="loadingState">
-          <h2>Loading Quiz...</h2>
-          <p>Fetching questions from the host.</p>
-        </div>
+/* =====================
+   QUESTION
+===================== */
+socket.on("game:question", (data) => {
+  document.getElementById("resultOverlay").classList.add("hidden");
 
-        <div id="gameArea" class="hidden">
-          <div
-            id="progress"
-            style="
-              color: #6b7280;
-              font-size: 13px;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-            ">
-            Question 1 / 5
-          </div>
+  clearInterval(timerInterval);
+  myAnswer = null;
 
-          <div class="q-text" id="qText">Question text loads here</div>
+  currentQuestionId = data.question._id;
+  timeLeft = data.time;
 
-          <div id="optionsList"></div>
+  document.getElementById("questionText").innerText =
+   data.qNum
+  ? `Q${data.qNum}: ${data.question.questionText}`
+  : data.question.questionText
 
-          <div id="feedback" class="status-msg"></div>
 
-          <button id="nextBtn" class="next-btn hidden" onclick="nextQuestion()">
-            Next Question ➜
-          </button>
-        </div>
+  const optionsDiv = document.getElementById("options");
+  optionsDiv.innerHTML = "";
 
-        <div id="endScreen" class="hidden">
-          <h1>🎉 Quiz Completed!</h1>
-          <p>You have answered all questions.</p>
-          <div style="margin-top: 30px">
-            <a href="index.html" style="color: #666; text-decoration: none"
-              >← Back to Home</a
-            >
-          </div>
-        </div>
-      </div>
-    </div>
+  data.question.options.forEach(opt => {
+    const btn = document.createElement("button");
+    btn.className = "option";
+    btn.innerText = opt.text;
+    btn.onclick = () => submitAnswer(opt.text, btn);
+    optionsDiv.appendChild(btn);
+  });
 
-    <script>
-      // --- 1. INITIAL SETUP ---
-      // Retrieve data saved during join (user.html)
-      const CODE = sessionStorage.getItem("SESSION_CODE");
-      const NAME = sessionStorage.getItem("PLAYER_NAME");
-      const P_ID = sessionStorage.getItem("PARTICIPANT_ID");
-      const TITLE = sessionStorage.getItem("SESSION_TITLE"); // Optional
+  startTimer();
+});
 
-      // Check if user is legally logged in
-      if (!CODE || !P_ID) {
-        alert("Session expired or invalid. Please join again.");
-        window.location.href = "user.html";
-      }
+/* =====================
+   SUBMIT ANSWER
+===================== */
+async function submitAnswer(answer, btn) {
+  if (hasSubmitted) return;
+  hasSubmitted = true;
 
-      // Update UI Header
-      document.getElementById("playerDisplay").innerText = `👤 ${NAME}`;
-      document.getElementById("sessionDisplay").innerText = `🔑 ${CODE}`;
+  document.querySelectorAll(".option").forEach(b => b.disabled = true);
+  btn.style.background = "#2563eb";
+  myAnswer = answer;
 
-      // Game State
-      let questions = [];
-      let currentIdx = 0;
+  await fetch("http://localhost:5000/api/participants/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      participantId: PARTICIPANT_ID,
+      questionId: currentQuestionId,
+      selectedOption: answer,
+      timeLeft
+    })
+  });
+}
 
-      // --- 2. FETCH QUESTIONS ---
-      window.onload = async () => {
-        try {
-          // Call API: GET /api/questions/session/QUIZ-101
-          const res = await fetch(
-            `http://localhost:5000/api/questions/session/${CODE}`,
-          );
-          const data = await res.json();
+/* =====================
+   RESULT
+===================== */
+socket.on("game:result", (data) => {
+  document.getElementById("resultOverlay").classList.remove("hidden");
 
-          if (res.ok && data.data && data.data.length > 0) {
-            questions = data.data;
-            // Start the Game
-            document.getElementById("loadingState").classList.add("hidden");
-            document.getElementById("gameArea").classList.remove("hidden");
-            renderQuestion();
-          } else {
-            // Handle empty session
-            document.getElementById("loadingState").innerHTML = `
-                    <h3>Waiting for Host...</h3>
-                    <p>No questions found for session <b>${CODE}</b>.</p>
-                    <button onclick="location.reload()" style="padding:10px; cursor:pointer;">Refresh</button>
-                `;
-          }
-        } catch (e) {
-          console.error(e);
-          document.getElementById("loadingState").innerHTML =
-            `<h3 style="color:red">Server Error</h3><p>Is the backend running?</p>`;
-        }
-      };
+  document.getElementById("correctAnswer").innerText =
+    `Correct Answer: ${data.correctAnswer}`;
 
-      // --- 3. RENDER QUESTION ---
-      function renderQuestion() {
-        // Clear previous state
-        document.getElementById("feedback").innerText = "";
-        document.getElementById("nextBtn").classList.add("hidden");
-        document.getElementById("optionsList").innerHTML = "";
+  const title = document.getElementById("resultTitle");
+  if (myAnswer === data.correctAnswer) {
+    title.innerText = "🎉 Correct!";
+    title.style.color = "#4ade80";
+  } else if (myAnswer) {
+    title.innerText = "❌ Wrong";
+    title.style.color = "#ef4444";
+  } else {
+    title.innerText = "⏰ Time Up";
+  }
+});
 
-        // Check if quiz is over
-        if (currentIdx >= questions.length) {
-          document.getElementById("gameArea").classList.add("hidden");
-          document.getElementById("endScreen").classList.remove("hidden");
-          return;
-        }
+/* =====================
+   TIMER
+===================== */
+function startTimer() {
+  document.getElementById("timer").innerText = `${timeLeft}s`;
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    document.getElementById("timer").innerText = `${timeLeft}s`;
+    if (timeLeft <= 0) clearInterval(timerInterval);
+  }, 1000);
+}
 
-        // Display current question
-        const q = questions[currentIdx];
-        document.getElementById("qText").innerText = q.questionText;
-        document.getElementById("progress").innerText =
-          `Question ${currentIdx + 1} / ${questions.length}`;
+/* =====================
+   GAME OVER
+===================== */
+socket.on("game:over", () => {
+  document.body.innerHTML =
+    "<h1 style='margin:auto'>🎉 Quiz Over! Thank you for playing.</h1>";
+});
+</script>
 
-        // Create Buttons for Options
-        q.options.forEach((opt) => {
-          const btn = document.createElement("button");
-          btn.className = "option-btn";
-          btn.innerText = opt.text;
-          // On click -> Verify Answer
-          btn.onclick = () => submitAnswer(q._id, opt.text, btn);
-          document.getElementById("optionsList").appendChild(btn);
-        });
-      }
-
-      // --- 4. SUBMIT ANSWER ---
-      async function submitAnswer(qId, selectedText, btnElement) {
-        // Disable all buttons immediately
-        const allBtns = document.querySelectorAll(".option-btn");
-        allBtns.forEach((b) => (b.disabled = true));
-
-        // UI Feedback: Verifying...
-        // btnElement.style.background = "#eff6ff"; // Light blue
-
-        try {
-          // Call API: POST /api/participants/submit
-          const res = await fetch(
-            "http://localhost:5000/api/participants/submit",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                participantId: P_ID,
-                questionId: qId,
-                selectedOption: selectedText,
-              }),
-            },
-          );
-
-          const data = await res.json();
-
-          // Show Visual Feedback
-          if (data.success && data.isCorrect) {
-            btnElement.classList.add("correct");
-            document.getElementById("feedback").innerText =
-              `✅ Correct! (+${data.marks} pts)`;
-            document.getElementById("feedback").style.color = "green";
-          } else {
-            btnElement.classList.add("wrong");
-            // Optional: You could highlight the correct answer here if you wanted
-            document.getElementById("feedback").innerText = "❌ Wrong Answer";
-            document.getElementById("feedback").style.color = "red";
-          }
-
-          // Show Next Button
-          document.getElementById("nextBtn").classList.remove("hidden");
-        } catch (e) {
-          console.error(e);
-          document.getElementById("feedback").innerText =
-            "Network Error. Answer not saved.";
-        }
-      }
-
-      // --- 5. NEXT QUESTION ---
-      function nextQuestion() {
-        currentIdx++;
-        renderQuestion();
-      }
-    </script>
-  </body>
+</body>
 </html>

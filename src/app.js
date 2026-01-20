@@ -10,9 +10,11 @@ const app = express();
 app.use(helmet());
 app.use(cors({ origin: "*"}));
 
+// ✅ EVENT SAFE RATE LIMIT
 app.use(rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 1000,              // ~500 users safe
+  message: "Too many requests, try again shortly"
 }));
 
 app.use(express.json({ limit: "10kb" }));

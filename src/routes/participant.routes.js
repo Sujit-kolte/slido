@@ -1,26 +1,24 @@
 import { Router } from "express";
-import { validateSessionCode } from "../middlewares/session.middleware.js";
+
 import {
   joinSession,
-  getLeaderboard,
+  submitAnswer,    // ✅ ATOMIC scoring controller
+  getLeaderboard,  // ✅ REQUIRED by frontend + projector
 } from "../controllers/participant.controller.js";
-
-// 1. Import the logic to handle answers
-// (Ensure you created response.controller.js as discussed previously)
-import { submitResponse } from "../controllers/response.controller.js";
 
 const router = Router();
 
-// --- Routes ---
+/* =========================
+   PARTICIPANT ROUTES
+========================= */
 
-// 1. Join Session (Checks if active, returns ID)
-router.post("/join", validateSessionCode, joinSession);
+// 1️⃣ Join Session
+router.post("/join", joinSession);
 
-// 2. Submit Answer (Verifies option against DB)
-// 🔴 THIS WAS MISSING
-router.post("/submit", submitResponse);
+// 2️⃣ Submit Answer (atomic, race-condition safe)
+router.post("/submit", submitAnswer);
 
-// 3. Leaderboard
-router.get("/leaderboard/:sessionCode", validateSessionCode, getLeaderboard);
+// 3️⃣ Leaderboard (used by phones + projector)
+router.get("/leaderboard/:sessionCode", getLeaderboard);
 
 export default router;

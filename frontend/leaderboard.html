@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Leaderboard</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: #111827;
+      color: white;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 700px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    h1 {
+      margin: 0;
+      background: linear-gradient(to right, #fbbf24, #d97706);
+      -webkit-background-clip: text;
+      color: transparent;
+      font-size: 36px;
+    }
+    p {
+      color: #9ca3af;
+      margin-top: 5px;
+    }
+    .card {
+      background: #1f2937;
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .row {
+      display: flex;
+      align-items: center;
+      padding: 16px 22px;
+      border-bottom: 1px solid #374151;
+      transition: all 0.3s ease;
+    }
+    .rank {
+      width: 50px;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .rank-1 { color: #fbbf24; }
+    .rank-2 { color: #9ca3af; }
+    .rank-3 { color: #b45309; }
+    .name {
+      flex-grow: 1;
+      font-size: 18px;
+    }
+    .score {
+      color: #4ade80;
+      font-weight: bold;
+      font-size: 18px;
+    }
+    .me {
+      background: #374151;
+      border-left: 4px solid #3b82f6;
+    }
+    .loading {
+      text-align: center;
+      padding: 30px;
+      color: #6b7280;
+    }
+    .hint {
+      text-align: center;
+      margin-top: 15px;
+      color: #6b7280;
+      font-size: 13px;
+    }
+  </style>
+</head>
+
+<body>
+<div class="container">
+  <div class="header">
+    <h1>🏆 Live Standings</h1>
+    <p id="sessionBadge">Session: --</p>
+  </div>
+
+  <div class="card" id="board">
+    <div class="loading">Waiting for players…</div>
+  </div>
+
+  <div class="hint">Press <b>F</b> for fullscreen (Projector Mode)</div>
+</div>
+
+<script>
+/* =====================
+   SESSION
+===================== */
+const CODE = sessionStorage.getItem("SESSION_CODE");
+const MY_CODE = sessionStorage.getItem("PLAYER_CODE");
+
+document.getElementById("sessionBadge").innerText =
+  `Session: ${CODE}`;
+
+/* =====================
+   SOCKET
+===================== */
+const socket = io("http://localhost:5000", {
+  transports: ["websocket"],
+  reconnection: true
+});
+
+socket.on("connect", () => {
+  socket.emit("join:session", CODE);
+  fetchLeaderboard();
+});
+
+/* =====================
+   LIVE UPDATES
+===================== */
+socket.on("leaderboard:update", () => {
+  fetchLeaderboard();
+});
+
+/* =====================
+   FETCH LEADERBOARD
+===================== */
+async function fetchLeaderboard() {
+  try {
+    const res = await fetch(
+      `http://localhost:5000/api/participants/leaderboard/${CODE}`
+    );
+    const data = await res.json();
+    const board = document.getElementById("board");
+
+    if (!data.data || data.data.length === 0) {
+      board.innerHTML =
+        '<div class="loading">No participants yet</div>';
+      return;
+    }
+
+    let html = "";
+    data.data.forEach((p, index) => {
+      const rankClass = index < 3 ? `rank-${index + 1}` : "";
+      const isMe = p.uniqueCode === MY_CODE ? "me" : "";
+
+      let icon = `#${p.rank}`;
+      if (index === 0) icon = "🥇";
+      if (index === 1) icon = "🥈";
+      if (index === 2) icon = "🥉";
+
+      html += `
+        <div class="row ${isMe}">
+          <div class="rank ${rankClass}">${icon}</div>
+          <div class="name">${p.name} ${isMe ? "(You)" : ""}</div>
+          <div class="score">${p.totalScore}</div>
+        </div>
+      `;
+    });
+
+    board.innerHTML = html;
+  } catch (e) {
+    console.error("Leaderboard error:", e);
+  }
+}
+
+/* =====================
+   PROJECTOR MODE
+===================== */
+document.addEventListener("keydown", (e) => {
+  if (e.key.toLowerCase() === "f") {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }
+});
+
+/* Auto refresh when tab refocuses */
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) fetchLeaderboard();
+});
+</script>
+</body>
+</html>

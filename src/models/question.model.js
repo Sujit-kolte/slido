@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const questionSchema = new mongoose.Schema(
   {
-    // 🔴 IMPORTANT: This must be 'String' to accept codes like "QUIZ-101"
+    // Session Code (e.g. QUIZ-101)
     sessionId: {
       type: String,
       required: true,
@@ -11,7 +11,7 @@ const questionSchema = new mongoose.Schema(
 
     questionText: {
       type: String,
-      required: [true, "Question text is required"],
+      required: true,
       maxlength: 500,
     },
 
@@ -22,11 +22,24 @@ const questionSchema = new mongoose.Schema(
       },
     ],
 
-    marks: { type: Number, default: 10 },
+    marks: {
+      type: Number,
+      default: 10,
+    },
 
-    status: { type: String, default: "ACTIVE" },
+    // 🔥 REQUIRED FOR MOVE UP / DOWN / SORT
+    order: {
+      type: Number,
+      required: true,
+      index: true,
+    },
+
+    status: {
+      type: String,
+      default: "ACTIVE",
+    },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 export default mongoose.model("Question", questionSchema);

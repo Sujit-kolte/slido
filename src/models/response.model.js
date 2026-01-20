@@ -1,24 +1,27 @@
 import mongoose from "mongoose";
 
-const responseSchema = new mongoose.Schema({
-  questionId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "Question", 
-    required: true,
-    index: true 
+const responseSchema = new mongoose.Schema(
+  {
+    questionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Question",
+      required: true,
+      index: true,
+    },
+    participantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Participant",
+      required: true,
+      index: true,
+    },
+    selectedOption: { type: String, maxlength: 200 },
+    isCorrect: Boolean,
+    marksObtained: { type: Number, default: 0 },
   },
-  participantId: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: "Participant", 
-    required: true,
-    index: true 
-  },
-  selectedOption: { type: String, maxlength: 200 },
-  isCorrect: Boolean,
-  marksObtained: { type: Number, default: 0 }
-}, { timestamps: true });
+  { timestamps: true },
+);
 
-// Unique index: One answer per participant per question
+// Prevent a user from answering the same question twice
 responseSchema.index({ questionId: 1, participantId: 1 }, { unique: true });
 
 export default mongoose.model("Response", responseSchema);

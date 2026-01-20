@@ -1,96 +1,163 @@
 import Participant from "../models/participant.model.js";
 import Session from "../models/session.model.js";
+import Question from "../models/question.model.js";
 
-// 1. JOIN SESSION
+/* =====================================================
+   1. JOIN SESSION (FRONTEND SAFE)
+===================================================== */
 export const joinSession = async (req, res, next) => {
   try {
     const { name, sessionCode } = req.body;
 
-    // A. Validate Input
     if (!name || name.trim().length < 2) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Name must be at least 2 characters",
-        });
-    }
-    if (!sessionCode) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Session Code is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid name",
+      });
     }
 
-    // B. Find the ACTIVE Session (and get its title)
-    // We search by the string code "QUIZ-101"
     const session = await Session.findOne({
-      sessionCode: sessionCode,
-      status: "ACTIVE",
+      sessionCode: { $regex: new RegExp(`^${sessionCode}$`, "i") },
     });
 
     if (!session) {
       return res.status(404).json({
         success: false,
-        message: "Session not found or is currently closed.",
+        message: "Session not found",
       });
     }
 
-    // C. Check if user already joined (Handle duplicates)
+    if (!["WAITING", "ACTIVE"].includes(session.status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Session closed",
+      });
+    }
+
     let participant = await Participant.findOne({
-      sessionId: sessionCode,
+      sessionId: session.sessionCode,
       name: name.trim(),
     });
 
-    // If exists, just log them back in
-    if (participant) {
-      return res.status(200).json({
-        success: true,
-        message: "Welcome back!",
-        data: {
-          participantId: participant._id,
-          name: participant.name,
-          sessionCode: session.sessionCode,
-          sessionTitle: session.title || "Untitled Session", // <--- Sending Title back
-        },
+    const uniqueCode = Math.floor(1000 + Math.random() * 9000).toString();
+
+    if (!participant) {
+      participant = await Participant.create({
+        sessionId: session.sessionCode,
+        name: name.trim(),
+        participantNumber: uniqueCode // <--- ADD THIS
       });
     }
 
-    // D. Create New Participant if not exists
-    participant = await Participant.create({
-      sessionId: sessionCode, // Link by code string
-      name: name.trim(),
-      score: 0,
-    });
-
-    res.status(201).json({
+    res.json({
       success: true,
-      message: "Joined successfully",
       data: {
         participantId: participant._id,
         name: participant.name,
+        uniqueCode: participant.participantNumber,
         sessionCode: session.sessionCode,
-        sessionTitle: session.title || "Untitled Session", // <--- Sending Title back
+        sessionTitle: session.title || "Untitled Session",
       },
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-// 2. GET LEADERBOARD
+/* =====================================================
+   2. SUBMIT ANSWER (ATOMIC + ANTI-CHEAT)
+===================================================== */
+export const submitAnswer = async (req, res, next) => {
+  try {
+    const { participantId, questionId, selectedOption, timeLeft } = req.body;
+
+    // 🔒 Validate session & active question (SERVER IS SOURCE OF TRUTH)
+    const session = await Session.findOne({ currentQuestionId: questionId });
+
+    if (
+      !session ||
+      !session.currentQuestionId ||
+      String(session.currentQuestionId) !== String(questionId) ||
+      new Date() > session.questionEndsAt
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Question not active or time up",
+      });
+    }
+
+    const question = await Question.findById(questionId);
+    if (!question) {
+      return res.status(404).json({
+        success: false,
+        message: "Question not found",
+      });
+    }
+
+    const correctOption = question.options.find((o) => o.isCorrect);
+    const isCorrect = correctOption?.text === selectedOption;
+
+    const safeTime = Math.max(0, Math.min(Number(timeLeft || 0), 15));
+    const scoreDelta = isCorrect
+      ? 10 + Math.round((safeTime / 15) * 10)
+      : -1;
+
+    // 🔥 ATOMIC UPDATE (NO DOUBLE SCORE POSSIBLE)
+    const result = await Participant.updateOne(
+      {
+        _id: participantId,
+        attemptedQuestions: { $ne: questionId },
+      },
+      {
+        $inc: { totalScore: scoreDelta },
+        $addToSet: {
+          attemptedQuestions: questionId,
+          ...(isCorrect && { rightAnswersBucket: questionId }),
+        },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.json({
+        success: true,
+        message: "Already answered",
+      });
+    }
+
+    // 🔄 Optional realtime leaderboard refresh (non-breaking)
+    req.app
+      .get("io")
+      ?.to(session.sessionCode)
+      ?.emit("leaderboard:update");
+
+    res.json({
+      success: true,
+      message: "Answer recorded",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =====================================================
+   3. LEADERBOARD (EXPORT REQUIRED BY ROUTES)
+===================================================== */
 export const getLeaderboard = async (req, res, next) => {
   try {
-    // We get the code from the URL params: /api/participants/leaderboard/QUIZ-101
     const { sessionCode } = req.params;
 
-    const participants = await Participant.find({ sessionId: sessionCode })
-      .sort({ score: -1, createdAt: 1 }) // Use 'score' or 'totalScore' based on your model
-      .limit(50);
+    const participants = await Participant.find({
+      sessionId: { $regex: new RegExp(`^${sessionCode}$`, "i") },
+    })
+      .sort({ totalScore: -1, createdAt: 1 })
+      .limit(50)
+      .select("name participantNumber totalScore createdAt");
 
-    const leaderboard = participants.map((p, i) => ({
-      rank: i + 1,
+    const leaderboard = participants.map((p, index) => ({
+      rank: index + 1,
       name: p.name,
-      totalScore: p.score || 0, // Fallback to 0
+      uniqueCode: p.participantNumber,
+      totalScore: p.totalScore,
       joinedAt: p.createdAt,
     }));
 
@@ -99,7 +166,7 @@ export const getLeaderboard = async (req, res, next) => {
       count: leaderboard.length,
       data: leaderboard,
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };

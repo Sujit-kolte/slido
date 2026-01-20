@@ -1,19 +1,47 @@
 import { Router } from "express";
 import { adminAuth } from "../middlewares/admin.middleware.js";
-// import { validateSessionCode } from "../middlewares/session.middleware.js"; // 🔴 Comment this out for now
 
 import {
   createQuestion,
   getQuestionsBySession,
+  updateQuestion,
+  deleteQuestion,
+  duplicateQuestion,
+  reorderQuestions,
+  getQuestionById,
 } from "../controllers/question.controller.js";
 
 const router = Router();
 
-// Admin creates questions (Needs Auth)
+/* ============================
+   CREATE
+============================ */
 router.post("/", adminAuth, createQuestion);
 
-// User fetches questions (Public/Open access for players)
-// 🔴 Removed validateSessionCode to prevent crashes during testing
+/* ============================
+   READ
+============================ */
 router.get("/session/:sessionCode", getQuestionsBySession);
+router.get("/:id", getQuestionById);
+
+/* ============================
+   🔥 REORDER (MUST BE ABOVE :id)
+============================ */
+router.put("/reorder/all", adminAuth, reorderQuestions);
+
+/* ============================
+   UPDATE
+============================ */
+router.put("/:id", adminAuth, updateQuestion);
+
+/* ============================
+   DELETE
+============================ */
+router.delete("/:id", adminAuth, deleteQuestion);
+
+/* ============================
+   DUPLICATE
+============================ */
+router.post("/:id/duplicate", adminAuth, duplicateQuestion);
 
 export default router;

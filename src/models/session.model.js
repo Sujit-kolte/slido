@@ -11,28 +11,31 @@ const sessionSchema = new mongoose.Schema(
       uppercase: true,
       maxlength: 20,
     },
+    currentQuestionId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Question",
+  default: null,
+},
+
+questionEndsAt: {
+  type: Date,
+  default: null,
+},
+
     status: {
       type: String,
-      enum: ["ACTIVE", "INACTIVE", "COMPLETED", "DELETED"],
-      default: "ACTIVE",
+      // 🟢 FIX 1: Add "WAITING" to the allowed list
+      enum: ["WAITING", "ACTIVE", "INACTIVE", "COMPLETED", "DELETED"],
+
+      // 🟢 FIX 2: Set default to "WAITING" (Lobby Mode)
+      default: "WAITING",
     },
+
+    // 🟢 FIX 3: Add startTime (Critical for Late Join Timer Sync)
+    startTime: { type: Date },
   },
+  
   { timestamps: true },
 );
 
 export default mongoose.model("Session", sessionSchema);
-// Add this temporarily in server.js to clean the database rules
-
-mongoose.connection.once("open", async () => {
-  try {
-    console.log("🧹 Cleaning up old database rules...");
-
-    // 1. Drop the "Global" Unique Index on participantNumber (The cause of your error)
-    await mongoose.connection.db
-      .collection("participants")
-      .dropIndex("participantNumber_1");
-    console.log("✅ Success: Removed the Global 'P001' restriction.");
-  } catch (e) {
-    console.log("Note: Global index was already gone (This is good).");
-  }
-});

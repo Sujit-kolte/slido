@@ -3,6 +3,8 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import routes from "./routes/routes.js";
+// 🟢 STEP 1: Import the Admin Routes
+import adminRoutes from "./routes/admin.routes.js";
 import errorHandler from "./middlewares/error.middleware.js";
 
 const app = express();
@@ -15,7 +17,6 @@ app.use(helmet());
 app.use(cors({ origin: "*" }));
 
 // ✅ EVENT SAFE RATE LIMIT
-// Now this will work because we trusted the proxy above
 app.use(
   rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minute
@@ -25,6 +26,12 @@ app.use(
 );
 
 app.use(express.json({ limit: "10kb" }));
+
+// 🟢 STEP 2: Connect the Admin Routes
+// This ensures requests to /api/admin/verify-passcode actually work!
+app.use("/api/admin", adminRoutes);
+
+// Connect General Routes
 app.use("/api", routes);
 
 app.get("/", (req, res) => {

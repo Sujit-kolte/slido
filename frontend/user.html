@@ -96,7 +96,8 @@
       <input
         type="text"
         id="sessionCode"
-        placeholder="Session Code (e.g. QUIZ-101)" />
+        placeholder="Session Code (e.g. GAME1)"
+        style="text-transform: uppercase" />
 
       <button id="joinBtn" onclick="handleJoin()">Join Session</button>
 
@@ -107,7 +108,12 @@
     <script>
       async function handleJoin() {
         const name = document.getElementById("userName").value.trim();
-        const code = document.getElementById("sessionCode").value.trim();
+        // 🟢 FIX 1: Force Uppercase to match backend
+        const code = document
+          .getElementById("sessionCode")
+          .value.trim()
+          .toUpperCase();
+
         const msgEl = document.getElementById("msg");
         const btn = document.getElementById("joinBtn");
 
@@ -121,9 +127,9 @@
         btn.innerText = "Verifying...";
 
         try {
-          // 2. Call Backend API
+          // 🟢 FIX 2: Correct API Endpoint (usually /join, not /join-session)
           const res = await fetch(
-            "http://localhost:5000/api/participants/join",
+            "https://slido-9mg1.onrender.com/api/participants/join",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -138,17 +144,15 @@
 
           if (res.ok) {
             // 3. SUCCESS: Save Data & Redirect
-            sessionStorage.setItem("PARTICIPANT_ID", data.data.participantId);
+            sessionStorage.setItem(
+              "PARTICIPANT_ID",
+              data.data._id || data.data.participantId,
+            );
             sessionStorage.setItem("SESSION_CODE", code);
             sessionStorage.setItem("PLAYER_NAME", name);
 
-            // 🟢 CRITICAL FIX: Save the Unique Code (P001, P002, etc.)
-            // This is what allows 'play.html' to display "Rahul-P001"
-            if (data.data.uniqueCode) {
-              sessionStorage.setItem("PLAYER_CODE", data.data.uniqueCode);
-            }
-
             // Navigate to the Game Page
+            // play.html will detect the data in sessionStorage and auto-login
             window.location.href = "play.html";
           } else {
             // 4. ERROR: Show message

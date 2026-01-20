@@ -107,7 +107,8 @@
       const API_URL = "https://slido-9mg1.onrender.com/api";
 
       async function verifyPasscode() {
-        const passcode = document.getElementById("passcode").value;
+        // 🛠️ TRIM SPACES: Removes accidental spaces from copy-pasting
+        const passcode = document.getElementById("passcode").value.trim();
         const errorEl = document.getElementById("errorMsg");
         const btn = document.getElementById("verifyBtn");
 
@@ -124,7 +125,6 @@
 
         try {
           // 3. Send Request to Backend Route
-          // Make sure your backend has a route for /admin/verify-passcode
           const response = await fetch(`${API_URL}/admin/verify-passcode`, {
             method: "POST",
             headers: {

@@ -18,26 +18,40 @@
       }
       h1 {
         margin-bottom: 20px;
+        color: #1f2937;
       }
       .card {
         background: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
       }
       input {
         width: 100%;
-        padding: 10px;
-        margin-bottom: 10px;
+        padding: 12px;
+        margin-bottom: 15px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-sizing: border-box;
       }
       button {
-        padding: 8px 14px;
+        padding: 10px 16px;
         border: none;
         border-radius: 6px;
         cursor: pointer;
         font-weight: bold;
+        font-size: 14px;
+        transition: 0.2s;
       }
+      button:hover {
+        opacity: 0.9;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
       .btn-blue {
         background: #2563eb;
         color: white;
@@ -52,38 +66,53 @@
       }
       .btn-grey {
         background: #e5e7eb;
+        color: #374151;
       }
+
       .session-row {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 10px;
+        padding: 15px;
         border-bottom: 1px solid #eee;
       }
       .badge {
-        padding: 3px 8px;
+        padding: 4px 8px;
         font-size: 12px;
         border-radius: 5px;
         margin-left: 10px;
+        font-weight: bold;
       }
       .WAITING {
         background: #fde68a;
+        color: #92400e;
       }
       .ACTIVE {
         background: #bbf7d0;
+        color: #166534;
       }
       .COMPLETED {
         background: #e5e7eb;
+        color: #374151;
       }
+
       .option-row {
         display: flex;
         gap: 10px;
-        margin-bottom: 6px;
+        margin-bottom: 10px;
+        align-items: center;
       }
       .question-box {
         border: 1px solid #e5e7eb;
-        padding: 10px;
-        margin-bottom: 8px;
+        padding: 15px;
+        margin-bottom: 10px;
+        border-radius: 8px;
+        background: #f9fafb;
+      }
+      /* Upper Case Inputs for Codes */
+      #cCode,
+      #targetCodeDisplay {
+        text-transform: uppercase;
       }
     </style>
   </head>
@@ -93,65 +122,89 @@
       <h1>🛠 Admin Dashboard</h1>
 
       <div class="card">
-        <h3>Create Session</h3>
-        <input id="cTitle" placeholder="Session Title" />
-        <input id="cCode" placeholder="Session Code" />
-        <button class="btn-blue" onclick="createSession()">Create</button>
-        <p id="createMsg"></p>
+        <h3>Create New Session</h3>
+        <input id="cTitle" placeholder="Session Title (e.g. 'Intro to AI')" />
+        <input
+          id="cCode"
+          placeholder="Session Code (e.g. 'GAME1')"
+          style="text-transform: uppercase" />
+        <button id="createBtn" class="btn-blue" onclick="createSession()">
+          Create Session
+        </button>
       </div>
 
       <div class="card">
-        <h3>Manage Sessions</h3>
-        <div id="sessionList">Loading…</div>
+        <h3>Your Sessions</h3>
+        <div id="sessionList">
+          <p style="color: #666">Loading sessions...</p>
+        </div>
+        <button
+          class="btn-grey"
+          onclick="loadSessions()"
+          style="margin-top: 10px">
+          ↻ Refresh List
+        </button>
       </div>
 
       <div class="card" id="qManager" style="display: none">
-        <h3>Questions for <span id="targetCodeDisplay"></span></h3>
+        <h3 style="border-bottom: 2px solid #eee; padding-bottom: 10px">
+          Managing: <span id="targetCodeDisplay" style="color: #2563eb"></span>
+        </h3>
+
         <input type="hidden" id="targetCode" />
-        <input id="qText" placeholder="Question text" />
+        <label><b>Question Text:</b></label>
+        <input id="qText" placeholder="e.g. What is the capital of France?" />
+
+        <label><b>Options (Select the correct answer):</b></label>
         <div id="optionsContainer"></div>
-        <button class="btn-grey" onclick="addOptionUI()">+ Option</button>
+
+        <button class="btn-grey" onclick="addOptionUI()">+ Add Option</button>
         <br /><br />
-        <button id="saveBtn" class="btn-blue" onclick="saveQuestion()">
-          Save Question
-        </button>
-        <button
-          id="cancelEditBtn"
-          class="btn-red"
-          style="display: none; margin-left: 10px"
-          onclick="resetForm()">
-          Cancel
-        </button>
-        <p id="qMsg"></p>
-        <hr />
+
+        <div style="display: flex; gap: 10px">
+          <button id="saveBtn" class="btn-blue" onclick="saveQuestion()">
+            Save Question
+          </button>
+          <button
+            id="cancelEditBtn"
+            class="btn-grey"
+            style="display: none"
+            onclick="resetForm()">
+            Cancel Edit
+          </button>
+        </div>
+        <p
+          id="qMsg"
+          style="height: 20px; color: #059669; font-weight: bold"></p>
+
+        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #ddd" />
+
         <h4>Existing Questions</h4>
         <div id="existingQuestions"></div>
       </div>
     </div>
 
     <script>
+      // 🟢 CONFIGURATION
       const API_URL = "https://slido-9mg1.onrender.com/api";
+      const SOCKET_URL = "https://slido-9mg1.onrender.com";
+
+      // Auth Check
       const PASSCODE = sessionStorage.getItem("ADMIN_PASSCODE");
-      const socket = io("https://slido-9mg1.onrender.com");
-
-      // TRACKING STATE
-      let currentSessionCode = null;
-      let editingQuestionId = null;
-      let loadedQuestions = []; // Store questions here to prevent HTML errors
-
       if (!PASSCODE) {
-        alert("Login first");
-        location.href = "admin.html";
+        window.location.href = "admin.html"; // Redirect if not logged in
       }
 
-      /* SOCKET CONNECTION */
-      socket.on("connect", () => {
-        console.log("🟢 Admin socket connected");
-      });
+      const socket = io(SOCKET_URL);
+      let currentSessionCode = null;
+      let editingQuestionId = null;
+      let loadedQuestions = [];
+
+      socket.on("connect", () => console.log("🟢 Connected to Live Server"));
 
       /* ============================
-   1. SESSION MANAGEMENT
-============================ */
+         1. SESSION MANAGEMENT
+      ============================ */
       async function loadSessions() {
         try {
           const res = await fetch(`${API_URL}/sessions`);
@@ -160,7 +213,7 @@
           list.innerHTML = "";
 
           if (!data.data || data.data.length === 0) {
-            list.innerHTML = "<p>No sessions found. Create one above.</p>";
+            list.innerHTML = "<p>No sessions found. Create one above!</p>";
             return;
           }
 
@@ -168,41 +221,67 @@
             const div = document.createElement("div");
             div.className = "session-row";
             div.innerHTML = `
-        <div>
-          <b>${s.title}</b> (${s.sessionCode})
-          <span class="badge ${s.status}">${s.status}</span>
-        </div>
-        <div>
-          <button class="btn-grey" onclick="openQManager('${s.sessionCode}')">Questions</button>
-          <button class="btn-green" onclick="startSession('${s._id}', '${s.sessionCode}')">Start</button>
-          <button class="btn-red" onclick="stopSession('${s._id}')">Stop</button>
-        </div>
-      `;
+                <div>
+                  <b style="font-size:18px">${s.title}</b> 
+                  <span style="color:#666; margin-left:5px;">(${s.sessionCode})</span>
+                  <span class="badge ${s.status}">${s.status}</span>
+                </div>
+                <div style="display:flex; gap:5px;">
+                  <button class="btn-grey" onclick="openQManager('${s.sessionCode}')">Edit Questions</button>
+                  ${
+                    s.status !== "ACTIVE"
+                      ? `<button class="btn-green" onclick="startSession('${s._id}', '${s.sessionCode}')">▶ Start</button>`
+                      : `<button class="btn-red" onclick="stopSession('${s._id}')">⏹ Stop</button>`
+                  }
+                </div>
+            `;
             list.appendChild(div);
           });
         } catch (e) {
           console.error(e);
+          document.getElementById("sessionList").innerText =
+            "Error loading sessions. Is server awake?";
         }
       }
 
       async function createSession() {
-        const title = document.getElementById("cTitle").value;
-        const code = document.getElementById("cCode").value;
+        const btn = document.getElementById("createBtn");
+        const title = document.getElementById("cTitle").value.trim();
+        const code = document
+          .getElementById("cCode")
+          .value.trim()
+          .toUpperCase();
+
         if (!title || !code) return alert("Please fill all fields");
 
-        await fetch(`${API_URL}/sessions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "admin-passcode": PASSCODE,
-          },
-          body: JSON.stringify({ title, sessionCode: code }),
-        });
-        loadSessions();
+        btn.disabled = true;
+        btn.innerText = "Creating...";
+
+        try {
+          await fetch(`${API_URL}/sessions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "admin-passcode": PASSCODE,
+            },
+            body: JSON.stringify({ title, sessionCode: code }),
+          });
+          document.getElementById("cTitle").value = "";
+          document.getElementById("cCode").value = "";
+          loadSessions();
+        } catch (e) {
+          alert("Failed to create session");
+        }
+        btn.disabled = false;
+        btn.innerText = "Create Session";
       }
 
       async function startSession(id, code) {
-        if (!confirm("Start quiz?")) return;
+        if (
+          !confirm(`Start session "${code}"? This will open the Leaderboard.`)
+        )
+          return;
+
         await fetch(`${API_URL}/sessions/${id}/status`, {
           method: "PUT",
           headers: {
@@ -211,16 +290,21 @@
           },
           body: JSON.stringify({ status: "ACTIVE" }),
         });
-        setTimeout(() => {
-          socket.emit("admin:start_game", code);
-        }, 300);
+
+        // Emit Socket Event to wake up student phones
+        socket.emit("admin:start_game", code);
+
+        // Open Projector View
         sessionStorage.setItem("SESSION_CODE", code);
-        window.open("leaderboard.html", "_blank");
+        window.open("leaderboard.html?code=" + code, "_blank");
+
         loadSessions();
       }
 
       async function stopSession(id) {
-        if (!confirm("Stop session?")) return;
+        if (!confirm("Stop this session? Students will see 'Game Over'."))
+          return;
+
         await fetch(`${API_URL}/sessions/${id}/status`, {
           method: "PUT",
           headers: {
@@ -233,13 +317,12 @@
       }
 
       /* ============================
-   2. QUESTION MANAGER
-============================ */
+         2. QUESTION MANAGER
+      ============================ */
       function openQManager(sessionCode) {
         currentSessionCode = sessionCode;
         document.getElementById("qManager").style.display = "block";
         document.getElementById("targetCodeDisplay").innerText = sessionCode;
-        document.getElementById("targetCode").value = sessionCode;
         resetForm();
         fetchQuestions(sessionCode);
         document
@@ -253,6 +336,9 @@
         document.getElementById("optionsContainer").innerHTML = "";
         document.getElementById("saveBtn").innerText = "Save Question";
         document.getElementById("cancelEditBtn").style.display = "none";
+        document.getElementById("qMsg").innerText = "";
+
+        // Add 2 default empty options
         addOptionUI("", true);
         addOptionUI("", false);
       }
@@ -262,31 +348,36 @@
         const div = document.createElement("div");
         div.className = "option-row";
         div.innerHTML = `
-    <input type="radio" name="correctGroup" ${correct ? "checked" : ""}>
-    <input class="opt-text" placeholder="Option text" value="${text}">
-    <button class="btn-red" style="padding:4px 8px; margin:0;" onclick="this.parentElement.remove()">X</button>
-  `;
+            <input type="radio" name="correctGroup" ${correct ? "checked" : ""} style="width:auto; margin-right:10px; cursor:pointer;">
+            <input class="opt-text" placeholder="Option text" value="${text}">
+            <button class="btn-red" style="padding:6px 10px;" onclick="this.parentElement.remove()">✕</button>
+        `;
         container.appendChild(div);
       }
 
       /* ============================
-   3. SAVE / UPDATE LOGIC
-============================ */
+         3. SAVE / UPDATE LOGIC
+      ============================ */
       async function saveQuestion() {
-        const qText = document.getElementById("qText").value;
+        const btn = document.getElementById("saveBtn");
+        const qText = document.getElementById("qText").value.trim();
         const optRows = document.querySelectorAll(".option-row");
+        const msg = document.getElementById("qMsg");
 
         const options = [];
         optRows.forEach((row) => {
-          const text = row.querySelector(".opt-text").value;
+          const text = row.querySelector(".opt-text").value.trim();
           const isCorrect = row.querySelector("input[type=radio]").checked;
           if (text) options.push({ text, isCorrect });
         });
 
         if (!qText || options.length < 2)
-          return alert("Need question + 2 options");
+          return alert("Please enter a question and at least 2 options.");
         if (!options.some((o) => o.isCorrect))
-          return alert("Mark one correct option");
+          return alert("Please select which option is correct (Radio button).");
+
+        btn.disabled = true;
+        btn.innerText = "Saving...";
 
         const method = editingQuestionId ? "PUT" : "POST";
         const url = editingQuestionId
@@ -300,99 +391,123 @@
           marks: 10,
         };
 
-        const res = await fetch(url, {
-          method: method,
-          headers: {
-            "Content-Type": "application/json",
-            "admin-passcode": PASSCODE,
-          },
-          body: JSON.stringify(body),
-        });
+        try {
+          const res = await fetch(url, {
+            method: method,
+            headers: {
+              "Content-Type": "application/json",
+              "admin-passcode": PASSCODE,
+            },
+            body: JSON.stringify(body),
+          });
 
-        if (res.ok) {
-          document.getElementById("qMsg").innerText = "Saved!";
-          resetForm();
-          fetchQuestions(currentSessionCode);
-        } else {
-          alert("Error saving");
+          if (res.ok) {
+            msg.innerText = editingQuestionId
+              ? "Question Updated!"
+              : "Question Added!";
+            setTimeout(() => (msg.innerText = ""), 3000);
+            resetForm();
+            fetchQuestions(currentSessionCode);
+          } else {
+            alert("Error saving question. Try again.");
+          }
+        } catch (e) {
+          console.error(e);
+          alert("Network error.");
         }
+
+        btn.disabled = false;
+        btn.innerText = "Save Question";
       }
 
       /* ============================
-   4. LIST & ACTIONS (FIXED)
-============================ */
+         4. LIST & ACTIONS
+      ============================ */
       async function fetchQuestions(sessionCode) {
-        const res = await fetch(`${API_URL}/questions/session/${sessionCode}`);
-        const data = await res.json();
         const container = document.getElementById("existingQuestions");
-        container.innerHTML = "";
+        container.innerHTML = "Loading...";
 
-        // 1. Save data globally to avoid JSON HTML errors
-        loadedQuestions = data.data || [];
+        try {
+          const res = await fetch(
+            `${API_URL}/questions/session/${sessionCode}`,
+          );
+          const data = await res.json();
+          container.innerHTML = "";
 
-        if (loadedQuestions.length === 0) {
-          container.innerHTML = "<i>No questions yet.</i>";
-          return;
+          loadedQuestions = data.data || [];
+
+          if (loadedQuestions.length === 0) {
+            container.innerHTML =
+              "<i style='color:#666'>No questions in this session yet.</i>";
+            return;
+          }
+
+          loadedQuestions.forEach((q, i) => {
+            const div = document.createElement("div");
+            div.className = "question-box";
+            div.innerHTML = `
+                  <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <strong>Q${i + 1}: ${q.questionText}</strong>
+                    <div style="display:flex; gap:5px;">
+                      <button class="btn-grey" title="Move Up" onclick="moveQuestion('${q._id}', 'up')">⬆</button>
+                      <button class="btn-grey" title="Move Down" onclick="moveQuestion('${q._id}', 'down')">⬇</button>
+                      <button class="btn-blue" onclick="loadForEdit('${q._id}')">Edit</button>
+                      <button class="btn-red" onclick="deleteQuestion('${q._id}')">🗑</button>
+                    </div>
+                  </div>
+                  <ul style="margin:10px 0 0 20px; padding:0; list-style-type:circle;">
+                    ${q.options
+                      .map(
+                        (o) => `
+                        <li style="${o.isCorrect ? "color:#059669; font-weight:bold;" : "color:#4b5563;"}">
+                            ${o.text} ${o.isCorrect ? "✅" : ""}
+                        </li>`,
+                      )
+                      .join("")}
+                  </ul>
+              `;
+            container.appendChild(div);
+          });
+        } catch (e) {
+          container.innerHTML = "Error loading questions.";
         }
-
-        loadedQuestions.forEach((q, i) => {
-          const div = document.createElement("div");
-          div.className = "question-box";
-          div.style.background = "#fff";
-          div.style.padding = "10px";
-          div.style.marginBottom = "10px";
-          div.style.border = "1px solid #ddd";
-
-          // 2. We use ID only in onclick to prevent quotes breaking HTML
-          div.innerHTML = `
-      <div style="display:flex; justify-content:space-between;">
-        <strong>Q${i + 1}: ${q.questionText}</strong>
-        <div>
-          <button class="btn-grey" onclick="moveQuestion('${q._id}', 'up')">⬆️</button>
-          <button class="btn-grey" onclick="moveQuestion('${q._id}', 'down')">⬇️</button>
-          <button class="btn-blue" onclick="loadForEdit('${q._id}')">✏️ Edit</button>
-          <button class="btn-red" onclick="deleteQuestion('${q._id}')">🗑️</button>
-        </div>
-      </div>
-      <ul style="margin:5px 0;">
-        ${q.options.map((o) => `<li style="${o.isCorrect ? "color:green;font-weight:bold" : ""}">${o.text}</li>`).join("")}
-      </ul>
-    `;
-          container.appendChild(div);
-        });
       }
 
-      // 🟢 NEW SAFE EDIT LOADER
       function loadForEdit(id) {
-        // Find the question object from our global array
         const q = loadedQuestions.find((item) => item._id === id);
         if (!q) return;
 
         editingQuestionId = q._id;
         document.getElementById("qText").value = q.questionText;
         document.getElementById("optionsContainer").innerHTML = "";
-
         q.options.forEach((o) => addOptionUI(o.text, o.isCorrect));
 
         document.getElementById("saveBtn").innerText = "Update Question";
         document.getElementById("cancelEditBtn").style.display = "inline-block";
-        document.getElementById("qManager").scrollIntoView();
+        document
+          .getElementById("qManager")
+          .scrollIntoView({ behavior: "smooth" });
       }
 
       async function moveQuestion(id, direction) {
-        await fetch(`${API_URL}/questions/reorder/all`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "admin-passcode": PASSCODE,
-          },
-          body: JSON.stringify({ questionId: id, direction: direction }),
-        });
-        fetchQuestions(currentSessionCode);
+        // Warning: This endpoint must exist in your backend routes!
+        try {
+          await fetch(`${API_URL}/questions/reorder/all`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              "admin-passcode": PASSCODE,
+            },
+            body: JSON.stringify({ questionId: id, direction: direction }),
+          });
+          fetchQuestions(currentSessionCode);
+        } catch (e) {
+          console.error(e);
+        }
       }
 
       async function deleteQuestion(id) {
-        if (!confirm("Delete?")) return;
+        if (!confirm("Are you sure you want to delete this question?")) return;
         await fetch(`${API_URL}/questions/${id}`, {
           method: "DELETE",
           headers: { "admin-passcode": PASSCODE },
@@ -400,6 +515,7 @@
         fetchQuestions(currentSessionCode);
       }
 
+      // Initial Load
       loadSessions();
     </script>
   </body>

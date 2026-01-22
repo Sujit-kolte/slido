@@ -2,22 +2,31 @@ import { Router } from "express";
 import { adminAuth } from "../middlewares/admin.middleware.js";
 import {
   createSession,
-  deleteSession,
   getAllSessions,
   getSessionByCode,
   updateSessionStatus,
-  resetSessionData // 🟢 Import this
+  resetSessionData, // 🟢 Imported
+  deleteSession     // 🟢 Imported
 } from "../controllers/session.controller.js";
 
 const router = Router();
 
+// Create a new session
 router.post("/", adminAuth, createSession);
-router.delete("/:sessionId", adminAuth, deleteSession); // Delete Session
+
+// Get all sessions (Admin Dashboard)
 router.get("/", getAllSessions);
+
+// Get specific session by Code (Player Join)
 router.get("/:sessionCode", getSessionByCode);
+
+// Update Session Status (Active/Inactive)
 router.put("/:sessionId/status", adminAuth, updateSessionStatus);
 
-// 🟢 NEW ROUTE: Reset Data (Delete Users/Responses)
+// Delete Session (Cascade Delete)
+router.delete("/:sessionId", adminAuth, deleteSession);
+
+// Reset Session Data (Keep Session/Questions, Delete Users/Responses)
 router.delete("/:sessionId/data", adminAuth, resetSessionData);
 
 export default router;

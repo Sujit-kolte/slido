@@ -322,20 +322,28 @@
         loadSessions();
       }
 
-      async function deleteSession(id) {
-        if (
-          !confirm(
-            "⚠️ DELETE SESSION?\n\nThis will permanently remove the session and all questions.",
-          )
-        )
-          return;
-        await fetch(`${API_URL}/sessions/${id}`, {
-          method: "DELETE",
-          headers: { "admin-passcode": PASSCODE },
-        });
-        loadSessions();
-      }
+     async function deleteSession(id) {
+  if (!confirm("⚠️ Are you sure? This will delete the session, all questions, and all players.")) return;
+  
+  try {
+    const res = await fetch(`${API_URL}/sessions/${id}`, {
+      method: "DELETE",
+      headers: { "admin-passcode": PASSCODE },
+    });
 
+    const data = await res.json();
+    
+    if (data.success) {
+      alert("✅ " + data.message);
+      loadSessions(); // Refresh list
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("❌ Server Error: Could not delete session.");
+  }
+}
       /* ================= QUESTION MANAGER ================= */
       function openQManager(sessionCode) {
         currentSessionCode = sessionCode;

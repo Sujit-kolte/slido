@@ -1,6 +1,7 @@
 import Session from "../models/session.model.js";
 import Participant from "../models/participant.model.js";
 import Response from "../models/response.model.js";
+import Question from "../models/question.model.js"; 
 
 // 1. CREATE SESSION
 export const createSession = async (req, res, next) => {
@@ -32,6 +33,7 @@ export const createSession = async (req, res, next) => {
 // 2. GET ALL SESSIONS
 export const getAllSessions = async (req, res, next) => {
   try {
+    // Only show sessions that aren't deleted (if you use soft delete elsewhere)
     const sessions = await Session.find({ status: { $ne: "DELETED" } }).sort({ createdAt: -1 });
     res.json({ success: true, count: sessions.length, data: sessions });
   } catch (error) {
@@ -83,47 +85,69 @@ export const updateSessionStatus = async (req, res, next) => {
   }
 };
 
-// 5. DELETE SESSION (Soft Delete)
 export const deleteSession = async (req, res, next) => {
   try {
-    const { sessionId } = req.params;
-    await Session.findByIdAndUpdate(sessionId, { status: "DELETED" });
-    res.json({ success: true, message: "Session deleted" });
+    const { sessionId } = req.params; // Matches route /:sessionId
+
+    // 1. Find the session first to get its CODE
+    const session = await Session.findById(sessionId);
+
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Session not found" });
+    }
+
+    const { sessionCode } = session;
+
+    // 2. Run all delete operations in parallel
+    // We delete using BOTH the ID and the Code to be 100% sure we catch everything
+    await Promise.all([
+      // Delete the Session itself
+      Session.findByIdAndDelete(sessionId),
+
+      // Delete Questions (Try both ID and Code links)
+      Question.deleteMany({ $or: [{ sessionId: sessionId }, { sessionId: sessionCode }] }),
+
+      // Delete Participants (Usually linked by Code)
+      Participant.deleteMany({ $or: [{ sessionId: sessionId }, { sessionId: sessionCode }] }),
+
+      // Delete Responses (Usually linked by Session ID)
+      Response.deleteMany({ sessionId: sessionId })
+    ]);
+
+    console.log(`🗑️ Deleted Session: ${session.title} (${sessionCode}) and all related data.`);
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Session and all associated participants, questions, and responses deleted." 
+    });
+
   } catch (error) {
+    console.error("Delete Error:", error);
     next(error);
   }
 };
 
-// 6. RESET SESSION (Clear Users & Responses)
+// 🟢 NEW: Reset Session (Keep Session/Questions, Delete Users)
 export const resetSessionData = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
-    const io = req.app.get("io"); // 🟢 Get Socket Instance
+    const io = req.app.get("io");
 
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ success: false, message: "Session not found" });
 
-    const sessionCode = session.sessionCode;
+    // Delete Participants and Responses
+    await Promise.all([
+      Participant.deleteMany({ sessionId: session.sessionCode }),
+      Response.deleteMany({ sessionId: sessionId })
+    ]);
 
-    // 1. Find Participants
-    const participants = await Participant.find({ sessionId: sessionCode });
-    const participantIds = participants.map(p => p._id);
-
-    // 2. Delete Data
-    await Response.deleteMany({ participantId: { $in: participantIds } });
-    await Participant.deleteMany({ sessionId: sessionCode });
-
-    // 3. Reset Session State
+    // Reset Status
     session.status = "WAITING";
-    session.currentQuestionId = null;
-    session.questionEndsAt = null;
-    session.startTime = null;
     await session.save();
 
-    // 🟢 4. Notify Leaderboard to CLEAR
-    if (io) {
-      io.to(sessionCode).emit("leaderboard:update");
-    }
+    // Notify clients to reset
+    if (io) io.to(session.sessionCode).emit("session:reset");
 
     res.json({ success: true, message: "♻️ Session reset! Ready for new players." });
   } catch (error) {

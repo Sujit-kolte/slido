@@ -201,11 +201,23 @@
       let myCurrentRank = "--";
       let myCurrentScore = 0;
 
-      // 🟢 CHANGE 1: Use localStorage (Persistent)
-      const SESSION_CODE = localStorage.getItem("SESSION_CODE");
-      const PARTICIPANT_ID = localStorage.getItem("PARTICIPANT_ID");
-      const PLAYER_NAME = localStorage.getItem("PLAYER_NAME");
-      const PLAYER_CODE = localStorage.getItem("PLAYER_CODE"); // e.g., "P7X2"
+      // 🟢 HYBRID CHECK: Look in LocalStorage FIRST, then fallback to SessionStorage
+      // This fixes the "Session expired" error if data was saved in the wrong place.
+      const SESSION_CODE =
+        localStorage.getItem("SESSION_CODE") ||
+        sessionStorage.getItem("SESSION_CODE");
+      const PARTICIPANT_ID =
+        localStorage.getItem("PARTICIPANT_ID") ||
+        sessionStorage.getItem("PARTICIPANT_ID");
+      const PLAYER_NAME =
+        localStorage.getItem("PLAYER_NAME") ||
+        sessionStorage.getItem("PLAYER_NAME");
+      const PLAYER_CODE =
+        localStorage.getItem("PLAYER_CODE") ||
+        sessionStorage.getItem("PLAYER_CODE");
+
+      // Debugging: Print to console so you can see what is happening
+      console.log("Login Check:", { SESSION_CODE, PARTICIPANT_ID });
 
       if (!SESSION_CODE || !PARTICIPANT_ID) {
         alert("Session expired. Please login again.");
@@ -221,11 +233,10 @@
 
       // ==========================================
       // 🔌 CONNECTION SETUP
-      // Toggle these comments when deploying!
       // ==========================================
 
-      const API_URL = "http://localhost:5000";
-      // const API_URL = "https://slido-9mg1.onrender.com"; // <--- Use this for Live
+      // ✅ Using your Live Render Link
+      const API_URL = "https://slido-9mg1.onrender.com";
 
       const socket = io(API_URL, {
         transports: ["websocket"],
@@ -238,14 +249,12 @@
       socket.on("connect", () => {
         console.log("Connected to Socket");
         socket.emit("join:session", SESSION_CODE);
-        // Force sync in case user refreshed page
         socket.emit("sync:state", SESSION_CODE);
       });
 
       socket.on("game:question", (data) => {
         currentQuestionId = data.question._id;
 
-        // Hide ranks/results when new question starts
         document.getElementById("rankBadge").classList.add("hidden");
         document.getElementById("resultOverlay").classList.add("hidden");
         document.getElementById("rankContainer").classList.add("hidden");
@@ -278,10 +287,9 @@
         document
           .querySelectorAll(".option")
           .forEach((b) => (b.disabled = true));
-        btn.style.background = "#2563eb"; // Highlight selected
+        btn.style.background = "#2563eb";
         myAnswer = answer;
 
-        // 🟢 Use API_URL variable
         try {
           await fetch(`${API_URL}/api/participants/submit`, {
             method: "POST",
@@ -304,9 +312,6 @@
           `Answer: ${data.correctAnswer}`;
 
         const title = document.getElementById("resultTitle");
-
-        // Check if correct
-        // (Normalize strings to avoid case mismatch issues)
         const myAnsNorm = myAnswer ? String(myAnswer).trim().toLowerCase() : "";
         const correctNorm = String(data.correctAnswer).trim().toLowerCase();
 
@@ -321,7 +326,6 @@
           title.style.color = "#fbbf24";
         }
 
-        // Show rank badge
         document.getElementById("rankBadge").classList.remove("hidden");
 
         let cool = 5;
@@ -333,9 +337,7 @@
         }, 1000);
       });
 
-      /* RANK LISTENER */
       socket.on("game:ranks", (rankList) => {
-        // Find my rank in the list
         const myData = rankList.find(
           (p) => String(p.id) === String(PARTICIPANT_ID),
         );
@@ -344,11 +346,9 @@
           myCurrentRank = myData.rank;
           myCurrentScore = myData.score;
 
-          // Update Top Left Badge
           document.getElementById("rankBadge").innerText =
             `Rank: #${myData.rank} (${myData.score} pts)`;
 
-          // Update Overlay Rank
           document.getElementById("resultRank").innerText = `#${myData.rank}`;
           document.getElementById("rankContainer").classList.remove("hidden");
         }

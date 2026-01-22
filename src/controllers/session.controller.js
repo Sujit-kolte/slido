@@ -160,3 +160,45 @@ export const resetSessionData = async (req, res, next) => {
     next(error);
   }
 };
+
+
+export const deleteSessionPermanently = async (req, res, next) => {
+  try {
+    const { sessionCode } = req.params;
+    const code = sessionCode.toUpperCase();
+
+    const session = await Session.findOne({ sessionCode: code });
+    if (!session) {
+      return res.status(404).json({ success: false, message: "Session not found" });
+    }
+
+    req.app.get("io")?.to(code).emit("game:force_stop");
+
+    // Get related IDs
+    const questions = await Question.find({ sessionId: code }).select("_id");
+    const participants = await Participant.find({ sessionId: code }).select("_id");
+
+    const questionIds = questions.map((q) => q._id);
+    const participantIds = participants.map((p) => p._id);
+
+    await Promise.all([
+      Response.deleteMany({
+        $or: [
+          { questionId: { $in: questionIds } },
+          { participantId: { $in: participantIds } },
+        ],
+      }),
+
+      Participant.deleteMany({ sessionId: code }),
+      Question.deleteMany({ sessionId: code }),
+      Session.deleteOne({ sessionCode: code }),
+    ]);
+
+    res.json({
+      success: true,
+      message: "Session and all related data deleted permanently",
+    });
+  } catch (err) {
+    next(err);
+  }
+};

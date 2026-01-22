@@ -255,7 +255,7 @@
         <button class="btn-orange" onclick="stopSession('${s._id}')">Stop</button>
         
         <button class="btn-purple" onclick="resetSession('${s._id}')" title="Reset Users & Scores">♻️</button>
-        <button class="btn-red" onclick="deleteSession('${s._id}')" title="Delete Session">🗑️</button>
+        <button class="btn-red" onclick="deleteSession('${s.sessionCode}')" title="Delete Session">🗑️</button>
       </div>
     `;
           list.appendChild(div);
@@ -322,28 +322,44 @@
         loadSessions();
       }
 
-     async function deleteSession(id) {
-  if (!confirm("⚠️ Are you sure? This will delete the session, all questions, and all players.")) return;
-  
+   async function deleteSession(sessionCode) {
+  const confirmDelete = confirm(
+    "⚠️ PERMANENT DELETE WARNING ⚠️\n\n" +
+      "This will delete:\n" +
+      "- The Session\n" +
+      "- All Questions\n" +
+      "- All Participants\n" +
+      "- All Responses\n\n" +
+      "Are you sure?"
+  );
+
+  if (!confirmDelete) return;
+
   try {
-    const res = await fetch(`${API_URL}/sessions/${id}`, {
-      method: "DELETE",
-      headers: { "admin-passcode": PASSCODE },
-    });
+    const res = await fetch(
+      `${API_URL}/sessions/${sessionCode}/permanent`,
+      {
+        method: "DELETE",
+        headers: {
+          "admin-passcode": PASSCODE,
+        },
+      }
+    );
 
     const data = await res.json();
-    
+
     if (data.success) {
-      alert("✅ " + data.message);
-      loadSessions(); // Refresh list
+      alert("✅ DELETED: " + data.message);
+      loadSessions();
     } else {
       alert("❌ Error: " + data.message);
     }
   } catch (err) {
     console.error(err);
-    alert("❌ Server Error: Could not delete session.");
+    alert("❌ Network Error: Could not delete session.");
   }
 }
+
       /* ================= QUESTION MANAGER ================= */
       function openQManager(sessionCode) {
         currentSessionCode = sessionCode;
@@ -469,41 +485,7 @@
         fetchQuestions(currentSessionCode);
       }
 
-      async function deleteSession(id) {
-  const confirmDelete = confirm(
-    "⚠️ PERMANENT DELETE WARNING ⚠️\n\n" +
-    "This will delete:\n" +
-    "- The Session\n" +
-    "- All Questions\n" +
-    "- All Participants\n" +
-    "- All Responses\n\n" +
-    "Are you sure?"
-  );
-
-  if (!confirmDelete) return;
-
-  try {
-    const res = await fetch(`${API_URL}/sessions/${id}`, {
-      method: "DELETE",
-      headers: { 
-        "Content-Type": "application/json",
-        "admin-passcode": PASSCODE 
-      },
-    });
-
-    const data = await res.json();
-
-    if (data.success) {
-      alert("✅ DELETED: " + data.message);
-      loadSessions(); // Refresh the list immediately
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  } catch (err) {
-    console.error(err);
-    alert("❌ Network Error: Could not delete session.");
-  }
-}
+    
 
       async function deleteQuestion(id) {
         if (!confirm("Delete?")) return;

@@ -8,6 +8,7 @@ import {
   resetSessionData, // 🟢 Imported
   deleteSession     // 🟢 Imported
 } from "../controllers/session.controller.js";
+import { deleteSessionPermanently } from "../controllers/session.controller.js";
 
 const router = Router();
 
@@ -28,5 +29,11 @@ router.delete("/:sessionId", adminAuth, deleteSession);
 
 // Reset Session Data (Keep Session/Questions, Delete Users/Responses)
 router.delete("/:sessionId/data", adminAuth, resetSessionData);
+
+router.delete(
+  "/:sessionCode/permanent",
+  adminAuth,
+  deleteSessionPermanently
+);
 
 export default router;

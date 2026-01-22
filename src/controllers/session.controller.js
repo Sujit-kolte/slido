@@ -87,7 +87,7 @@ export const updateSessionStatus = async (req, res, next) => {
 
 export const deleteSession = async (req, res, next) => {
   try {
-    const { sessionId } = req.params; // Matches route /:sessionId
+    const { sessionId } = req.params; // Matches router.delete("/:sessionId")
 
     // 1. Find the session first to get its CODE
     const session = await Session.findById(sessionId);
@@ -96,29 +96,35 @@ export const deleteSession = async (req, res, next) => {
       return res.status(404).json({ success: false, message: "Session not found" });
     }
 
-    const { sessionCode } = session;
+    const { sessionCode, _id } = session;
 
-    // 2. Run all delete operations in parallel
-    // We delete using BOTH the ID and the Code to be 100% sure we catch everything
+    console.log(`🗑️ Deleting Session: ${sessionCode} (ID: ${_id})`);
+
+    // 2. Delete EVERYTHING related to this session
+    // We use $or to delete if linked by ID OR linked by Code, covering all bases.
     await Promise.all([
-      // Delete the Session itself
-      Session.findByIdAndDelete(sessionId),
+      // A. Delete the Session Document
+      Session.findByIdAndDelete(_id),
 
-      // Delete Questions (Try both ID and Code links)
-      Question.deleteMany({ $or: [{ sessionId: sessionId }, { sessionId: sessionCode }] }),
+      // B. Delete Participants (Linked by Code or ID)
+      Participant.deleteMany({ 
+        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
+      }),
 
-      // Delete Participants (Usually linked by Code)
-      Participant.deleteMany({ $or: [{ sessionId: sessionId }, { sessionId: sessionCode }] }),
+      // C. Delete Questions (Linked by Code or ID)
+      Question.deleteMany({ 
+        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
+      }),
 
-      // Delete Responses (Usually linked by Session ID)
-      Response.deleteMany({ sessionId: sessionId })
+      // D. Delete Responses (Linked by Code or ID)
+      Response.deleteMany({ 
+        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
+      })
     ]);
-
-    console.log(`🗑️ Deleted Session: ${session.title} (${sessionCode}) and all related data.`);
 
     res.status(200).json({ 
       success: true, 
-      message: "Session and all associated participants, questions, and responses deleted." 
+      message: "Session and ALL participants, questions, and responses permanently deleted." 
     });
 
   } catch (error) {

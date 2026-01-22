@@ -469,6 +469,42 @@
         fetchQuestions(currentSessionCode);
       }
 
+      async function deleteSession(id) {
+  const confirmDelete = confirm(
+    "⚠️ PERMANENT DELETE WARNING ⚠️\n\n" +
+    "This will delete:\n" +
+    "- The Session\n" +
+    "- All Questions\n" +
+    "- All Participants\n" +
+    "- All Responses\n\n" +
+    "Are you sure?"
+  );
+
+  if (!confirmDelete) return;
+
+  try {
+    const res = await fetch(`${API_URL}/sessions/${id}`, {
+      method: "DELETE",
+      headers: { 
+        "Content-Type": "application/json",
+        "admin-passcode": PASSCODE 
+      },
+    });
+
+    const data = await res.json();
+
+    if (data.success) {
+      alert("✅ DELETED: " + data.message);
+      loadSessions(); // Refresh the list immediately
+    } else {
+      alert("❌ Error: " + data.message);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("❌ Network Error: Could not delete session.");
+  }
+}
+
       async function deleteQuestion(id) {
         if (!confirm("Delete?")) return;
         await fetch(`${API_URL}/questions/${id}`, {

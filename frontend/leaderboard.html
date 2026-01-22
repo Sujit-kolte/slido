@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Live Leaderboard</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #111827;
+        color: white;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+      }
+      .container {
+        width: 100%;
+        max-width: 800px;
+      }
+      .header {
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      h1 {
+        margin: 0;
+        background: linear-gradient(to right, #fbbf24, #d97706);
+        -webkit-background-clip: text;
+        color: transparent;
+        font-size: 42px;
+      }
+      p {
+        color: #9ca3af;
+        margin-top: 5px;
+        font-size: 18px;
+      }
+      .card {
+        background: #1f2937;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        padding: 18px 24px;
+        border-bottom: 1px solid #374151;
+        transition: all 0.3s ease;
+      }
+      .row:last-child {
+        border-bottom: none;
+      }
+
+      .rank {
+        width: 60px;
+        font-weight: bold;
+        font-size: 24px;
+        text-align: center;
+      }
+      .rank-1 {
+        color: #fbbf24;
+        text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+      }
+      .rank-2 {
+        color: #94a3b8;
+      }
+      .rank-3 {
+        color: #b45309;
+      }
+
+      .name {
+        flex-grow: 1;
+        font-size: 20px;
+        font-weight: 500;
+      }
+      .code {
+        font-size: 14px;
+        color: #6b7280;
+        margin-left: 10px;
+      }
+
+      .score {
+        color: #4ade80;
+        font-weight: bold;
+        font-size: 22px;
+        min-width: 80px;
+        text-align: right;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 40px;
+        color: #6b7280;
+        font-size: 18px;
+      }
+      .hint {
+        text-align: center;
+        margin-top: 20px;
+        color: #4b5563;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🏆 Live Standings</h1>
+        <p id="sessionBadge">Waiting for Session...</p>
+      </div>
+
+      <div class="card" id="board">
+        <div class="loading">Connecting to server...</div>
+      </div>
+
+      <div class="hint">Press <b>F11</b> for Fullscreen Mode</div>
+    </div>
+
+    <script>
+      /* =====================
+   1. CONFIGURATION
+===================== */
+      const API_URL = "https://slido-9mg1.onrender.com/api";
+      const SOCKET_URL = "https://slido-9mg1.onrender.com";
+
+      // Get Session from Storage (Admin sets this before opening window)
+      const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
+
+      if (!SESSION_CODE) {
+        document.body.innerHTML =
+          "<h2 style='text-align:center;color:white;margin-top:50px;'>No Active Session. Please launch from Admin Dashboard.</h2>";
+      } else {
+        document.getElementById("sessionBadge").innerText =
+          `Session Code: ${SESSION_CODE}`;
+        initBoard();
+      }
+
+      function initBoard() {
+        const socket = io(SOCKET_URL, { transports: ["websocket"] });
+
+        // Initial Load
+        fetchLeaderboard();
+
+        socket.on("connect", () => {
+          socket.emit("join:session", SESSION_CODE);
+        });
+
+        // Listen for LIVE score updates
+        socket.on("leaderboard:update", () => {
+          console.log("⚡ New scores received!");
+          fetchLeaderboard();
+        });
+      }
+
+      async function fetchLeaderboard() {
+        try {
+          const res = await fetch(
+            `${API_URL}/participants/leaderboard/${SESSION_CODE}`,
+          );
+          const data = await res.json();
+          const board = document.getElementById("board");
+
+          if (!data.data || data.data.length === 0) {
+            board.innerHTML =
+              '<div class="loading">Waiting for players to join...</div>';
+            return;
+          }
+
+          let html = "";
+          data.data.forEach((p, index) => {
+            // Icons for Top 3
+            let icon = `#${index + 1}`;
+            let colorClass = "";
+
+            if (index === 0) {
+              icon = "🥇";
+              colorClass = "rank-1";
+            }
+            if (index === 1) {
+              icon = "🥈";
+              colorClass = "rank-2";
+            }
+            if (index === 2) {
+              icon = "🥉";
+              colorClass = "rank-3";
+            }
+
+            html += `
+        <div class="row">
+          <div class="rank ${colorClass}">${icon}</div>
+          <div class="name">
+            ${p.name} 
+            <span class="code">(${p.uniqueCode || "---"})</span>
+          </div>
+          <div class="score">${p.totalScore} pts</div>
+        </div>
+      `;
+          });
+
+          board.innerHTML = html;
+        } catch (e) {
+          console.error("Leaderboard error:", e);
+        }
+      }
+    </script>
+  </body>
+</html>

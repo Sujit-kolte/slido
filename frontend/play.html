@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>GDG Live Quiz</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #111827;
+        color: white;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+      .container {
+        width: 100%;
+        max-width: 420px;
+        padding: 20px;
+        text-align: center;
+      }
+      .timer {
+        font-size: 22px;
+        font-weight: bold;
+        color: #60a5fa;
+        text-align: right;
+      }
+      .question {
+        font-size: 24px;
+        margin: 20px 0;
+      }
+      .option {
+        width: 100%;
+        padding: 16px;
+        margin-bottom: 12px;
+        background: #1f2937;
+        border: 2px solid #374151;
+        color: white;
+        border-radius: 10px;
+        font-size: 16px;
+        cursor: pointer;
+        text-align: left;
+        transition: 0.2s;
+      }
+      .option:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 50;
+        text-align: center;
+      }
+      .hidden {
+        display: none !important;
+      }
+      .rank-box {
+        background: #374151;
+        padding: 15px 30px;
+        border-radius: 15px;
+        border: 2px solid #fbbf24;
+        margin-top: 20px;
+        animation: popIn 0.5s ease;
+      }
+
+      /* 🟢 Rank Badge Style */
+      #rankBadge {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: #374151;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        color: #fbbf24;
+        border: 1px solid #4b5563;
+        transition: opacity 0.3s;
+      }
+
+      @keyframes popIn {
+        from {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="rankBadge" class="hidden">Rank: --</div>
+
+    <div class="container" id="gameArea">
+      <div class="timer" id="timer">--</div>
+      <div class="question" id="questionText">Waiting for host…</div>
+      <div id="options"></div>
+    </div>
+
+    <div class="overlay hidden" id="resultOverlay">
+      <h1 id="resultTitle" style="font-size: 40px; margin: 0"></h1>
+      <p id="correctAnswer" style="color: #9ca3af; margin-top: 10px"></p>
+
+      <div id="rankContainer" class="hidden rank-box">
+        <div style="color: #fbbf24; font-size: 14px; letter-spacing: 1px">
+          CURRENT RANK
+        </div>
+        <div
+          id="resultRank"
+          style="color: white; font-size: 42px; font-weight: bold">
+          #--
+        </div>
+      </div>
+
+      <p style="opacity: 0.6; margin-top: 30px; font-size: 14px">
+        Next question in <span id="coolTimer">5</span>...
+      </p>
+    </div>
+
+    <div
+      id="gameOverCard"
+      class="hidden"
+      style="
+        position: fixed;
+        inset: 0;
+        background: #111827;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+      ">
+      <h1 style="color: #fbbf24; font-size: 40px; margin-bottom: 10px">
+        🏆 Quiz Completed!
+      </h1>
+      <div
+        style="
+          background: #1f2937;
+          padding: 30px;
+          border-radius: 15px;
+          text-align: center;
+          border: 2px solid #374151;
+          min-width: 280px;
+        ">
+        <p style="color: #9ca3af; margin: 0">YOUR FINAL RANK</p>
+        <h2
+          id="finalRankDisplay"
+          style="font-size: 60px; margin: 10px 0; color: white">
+          #--
+        </h2>
+        <p
+          id="finalScoreDisplay"
+          style="color: #34d399; font-weight: bold; font-size: 24px">
+          0 pts
+        </p>
+      </div>
+      <button
+        onclick="location.href = 'user.html'"
+        style="
+          margin-top: 30px;
+          padding: 10px 20px;
+          background: #2563eb;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: bold;
+          cursor: pointer;
+        ">
+        Exit
+      </button>
+    </div>
+
+    <script>
+      let hasSubmitted = false;
+      let currentQuestionId = null;
+      let myCurrentRank = "--";
+      let myCurrentScore = 0;
+
+      const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
+      const PARTICIPANT_ID = sessionStorage.getItem("PARTICIPANT_ID");
+
+      if (!SESSION_CODE || !PARTICIPANT_ID) {
+        alert("Session expired.");
+        location.href = "user.html";
+      }
+
+      const socket = io("https://slido-9mg1.onrender.com", {
+        transports: ["websocket"],
+      });
+      let timeLeft = 0,
+        timerInterval = null,
+        myAnswer = null;
+
+      socket.on("connect", () => {
+        socket.emit("join:session", SESSION_CODE);
+        socket.emit("sync:state", SESSION_CODE);
+      });
+
+      socket.on("game:question", (data) => {
+        currentQuestionId = data.question._id;
+
+        // 🟢 HIDE RANKS DURING QUESTION
+        document.getElementById("rankBadge").classList.add("hidden");
+        document.getElementById("resultOverlay").classList.add("hidden");
+        document.getElementById("rankContainer").classList.add("hidden");
+
+        clearInterval(timerInterval);
+        myAnswer = null;
+        hasSubmitted = false;
+        timeLeft = data.time;
+        document.getElementById("questionText").innerText = data.qNum
+          ? `Q${data.qNum}: ${data.question.questionText}`
+          : data.question.questionText;
+
+        const optionsDiv = document.getElementById("options");
+        optionsDiv.innerHTML = "";
+        data.question.options.forEach((opt) => {
+          const btn = document.createElement("button");
+          btn.className = "option";
+          btn.innerText = opt.text;
+          btn.onclick = () => submitAnswer(opt.text, btn);
+          optionsDiv.appendChild(btn);
+        });
+        startTimer();
+      });
+
+      async function submitAnswer(answer, btn) {
+        if (hasSubmitted) return;
+        hasSubmitted = true;
+        document
+          .querySelectorAll(".option")
+          .forEach((b) => (b.disabled = true));
+        btn.style.background = "#2563eb";
+        myAnswer = answer;
+
+        await fetch("https://slido-9mg1.onrender.com/api/participants/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            participantId: PARTICIPANT_ID,
+            questionId: currentQuestionId,
+            selectedOption: answer,
+            timeLeft,
+          }),
+        });
+      }
+
+      socket.on("game:result", (data) => {
+        document.getElementById("resultOverlay").classList.remove("hidden");
+        document.getElementById("correctAnswer").innerText =
+          `Answer: ${data.correctAnswer}`;
+        const title = document.getElementById("resultTitle");
+        if (myAnswer === data.correctAnswer) {
+          title.innerText = "🎉 Correct!";
+          title.style.color = "#4ade80";
+        } else if (myAnswer) {
+          title.innerText = "❌ Wrong";
+          title.style.color = "#ef4444";
+        } else {
+          title.innerText = "⏰ Time Up";
+          title.style.color = "#fbbf24";
+        }
+
+        // 🟢 SHOW RANK BADGE DURING COOLING
+        document.getElementById("rankBadge").classList.remove("hidden");
+
+        let cool = 5;
+        const coolEl = document.getElementById("coolTimer");
+        const interval = setInterval(() => {
+          cool--;
+          coolEl.innerText = cool;
+          if (cool <= 0) clearInterval(interval);
+        }, 1000);
+      });
+
+      /* RANK LISTENER */
+      socket.on("game:ranks", (rankList) => {
+        const myData = rankList.find(
+          (p) => String(p.id) === String(PARTICIPANT_ID),
+        );
+        if (myData) {
+          myCurrentRank = myData.rank;
+          myCurrentScore = myData.score;
+
+          // Update Text
+          document.getElementById("rankBadge").innerText =
+            `Rank: #${myData.rank} (${myData.score} pts)`;
+          document.getElementById("resultRank").innerText = `#${myData.rank}`;
+
+          // Show Rank Container in Overlay
+          document.getElementById("rankContainer").classList.remove("hidden");
+        }
+      });
+
+      socket.on("game:over", () => {
+        document.getElementById("gameArea").style.display = "none";
+        document.getElementById("resultOverlay").style.display = "none";
+        document.getElementById("rankBadge").style.display = "none"; // Hide small badge
+
+        document.getElementById("finalRankDisplay").innerText =
+          `#${myCurrentRank}`;
+        document.getElementById("finalScoreDisplay").innerText =
+          `${myCurrentScore} pts`;
+
+        document.getElementById("gameOverCard").classList.remove("hidden");
+      });
+
+      function startTimer() {
+        document.getElementById("timer").innerText = `${timeLeft}s`;
+        timerInterval = setInterval(() => {
+          timeLeft--;
+          document.getElementById("timer").innerText = `${timeLeft}s`;
+          if (timeLeft <= 0) clearInterval(timerInterval);
+        }, 1000);
+      }
+    </script>
+  </body>
+</html>

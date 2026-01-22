@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quiz Portal</title>
+    <style>
+      /* General Page Styling */
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f3f4f6;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        margin: 0;
+      }
+
+      /* The Card Container */
+      .card {
+        background: white;
+        padding: 3rem;
+        border-radius: 15px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        text-align: center;
+        width: 350px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #1f2937;
+        font-size: 28px;
+        margin-bottom: 10px;
+      }
+
+      p {
+        color: #6b7280;
+        margin-bottom: 30px;
+      }
+
+      /* The Links (styled as buttons) */
+      .nav-btn {
+        display: block;
+        width: 100%;
+        padding: 15px;
+        margin-bottom: 15px;
+        text-decoration: none; /* Remove underline from link */
+        border-radius: 10px;
+        font-size: 18px;
+        font-weight: bold;
+        color: white;
+        transition:
+          transform 0.2s,
+          opacity 0.2s;
+        box-sizing: border-box; /* Ensures padding doesn't break width */
+      }
+
+      .btn-user {
+        background: linear-gradient(135deg, #059669, #10b981); /* Green */
+        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+      }
+
+      .btn-admin {
+        background: linear-gradient(135deg, #1e40af, #3b82f6); /* Blue */
+        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+      }
+
+      .nav-btn:hover {
+        transform: translateY(-2px);
+        opacity: 0.9;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Welcome</h1>
+      <p>Please select your portal to continue</p>
+
+      <a href="user.html" class="nav-btn btn-user"> User Portal </a>
+
+      <a href="admin.html" class="nav-btn btn-admin"> Admin Portal </a>
+    </div>
+  </body>
+</html>

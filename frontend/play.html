@@ -71,7 +71,7 @@
         animation: popIn 0.5s ease;
       }
 
-      /* 🟢 Rank Badge Style */
+      /* 🟢 Rank Badge Style (Top Left) */
       #rankBadge {
         position: absolute;
         top: 20px;
@@ -84,6 +84,19 @@
         color: #fbbf24;
         border: 1px solid #4b5563;
         transition: opacity 0.3s;
+      }
+
+      /* 🟢 Player Info Badge (Top Right) */
+      #playerInfo {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: #1f2937;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        color: #9ca3af;
+        border: 1px solid #374151;
       }
 
       @keyframes popIn {
@@ -101,6 +114,7 @@
 
   <body>
     <div id="rankBadge" class="hidden">Rank: --</div>
+    <div id="playerInfo">Loading...</div>
 
     <div class="container" id="gameArea">
       <div class="timer" id="timer">--</div>
@@ -187,30 +201,51 @@
       let myCurrentRank = "--";
       let myCurrentScore = 0;
 
-      const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
-      const PARTICIPANT_ID = sessionStorage.getItem("PARTICIPANT_ID");
+      // 🟢 CHANGE 1: Use localStorage (Persistent)
+      const SESSION_CODE = localStorage.getItem("SESSION_CODE");
+      const PARTICIPANT_ID = localStorage.getItem("PARTICIPANT_ID");
+      const PLAYER_NAME = localStorage.getItem("PLAYER_NAME");
+      const PLAYER_CODE = localStorage.getItem("PLAYER_CODE"); // e.g., "P7X2"
 
       if (!SESSION_CODE || !PARTICIPANT_ID) {
-        alert("Session expired.");
+        alert("Session expired. Please login again.");
         location.href = "user.html";
       }
 
-      const socket = io("https://slido-9mg1.onrender.com", {
+      // 🟢 Display Name + Unique Code
+      if (PLAYER_NAME) {
+        document.getElementById("playerInfo").innerText = PLAYER_CODE
+          ? `${PLAYER_NAME} (${PLAYER_CODE})`
+          : PLAYER_NAME;
+      }
+
+      // ==========================================
+      // 🔌 CONNECTION SETUP
+      // Toggle these comments when deploying!
+      // ==========================================
+
+      const API_URL = "http://localhost:5000";
+      // const API_URL = "https://slido-9mg1.onrender.com"; // <--- Use this for Live
+
+      const socket = io(API_URL, {
         transports: ["websocket"],
       });
+
       let timeLeft = 0,
         timerInterval = null,
         myAnswer = null;
 
       socket.on("connect", () => {
+        console.log("Connected to Socket");
         socket.emit("join:session", SESSION_CODE);
+        // Force sync in case user refreshed page
         socket.emit("sync:state", SESSION_CODE);
       });
 
       socket.on("game:question", (data) => {
         currentQuestionId = data.question._id;
 
-        // 🟢 HIDE RANKS DURING QUESTION
+        // Hide ranks/results when new question starts
         document.getElementById("rankBadge").classList.add("hidden");
         document.getElementById("resultOverlay").classList.add("hidden");
         document.getElementById("rankContainer").classList.add("hidden");
@@ -219,12 +254,14 @@
         myAnswer = null;
         hasSubmitted = false;
         timeLeft = data.time;
+
         document.getElementById("questionText").innerText = data.qNum
           ? `Q${data.qNum}: ${data.question.questionText}`
           : data.question.questionText;
 
         const optionsDiv = document.getElementById("options");
         optionsDiv.innerHTML = "";
+
         data.question.options.forEach((opt) => {
           const btn = document.createElement("button");
           btn.className = "option";
@@ -241,27 +278,39 @@
         document
           .querySelectorAll(".option")
           .forEach((b) => (b.disabled = true));
-        btn.style.background = "#2563eb";
+        btn.style.background = "#2563eb"; // Highlight selected
         myAnswer = answer;
 
-        await fetch("https://slido-9mg1.onrender.com/api/participants/submit", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            participantId: PARTICIPANT_ID,
-            questionId: currentQuestionId,
-            selectedOption: answer,
-            timeLeft,
-          }),
-        });
+        // 🟢 Use API_URL variable
+        try {
+          await fetch(`${API_URL}/api/participants/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              participantId: PARTICIPANT_ID,
+              questionId: currentQuestionId,
+              selectedOption: answer,
+              timeLeft,
+            }),
+          });
+        } catch (err) {
+          console.error("Submit failed:", err);
+        }
       }
 
       socket.on("game:result", (data) => {
         document.getElementById("resultOverlay").classList.remove("hidden");
         document.getElementById("correctAnswer").innerText =
           `Answer: ${data.correctAnswer}`;
+
         const title = document.getElementById("resultTitle");
-        if (myAnswer === data.correctAnswer) {
+
+        // Check if correct
+        // (Normalize strings to avoid case mismatch issues)
+        const myAnsNorm = myAnswer ? String(myAnswer).trim().toLowerCase() : "";
+        const correctNorm = String(data.correctAnswer).trim().toLowerCase();
+
+        if (myAnsNorm === correctNorm) {
           title.innerText = "🎉 Correct!";
           title.style.color = "#4ade80";
         } else if (myAnswer) {
@@ -272,7 +321,7 @@
           title.style.color = "#fbbf24";
         }
 
-        // 🟢 SHOW RANK BADGE DURING COOLING
+        // Show rank badge
         document.getElementById("rankBadge").classList.remove("hidden");
 
         let cool = 5;
@@ -286,19 +335,21 @@
 
       /* RANK LISTENER */
       socket.on("game:ranks", (rankList) => {
+        // Find my rank in the list
         const myData = rankList.find(
           (p) => String(p.id) === String(PARTICIPANT_ID),
         );
+
         if (myData) {
           myCurrentRank = myData.rank;
           myCurrentScore = myData.score;
 
-          // Update Text
+          // Update Top Left Badge
           document.getElementById("rankBadge").innerText =
             `Rank: #${myData.rank} (${myData.score} pts)`;
-          document.getElementById("resultRank").innerText = `#${myData.rank}`;
 
-          // Show Rank Container in Overlay
+          // Update Overlay Rank
+          document.getElementById("resultRank").innerText = `#${myData.rank}`;
           document.getElementById("rankContainer").classList.remove("hidden");
         }
       });
@@ -306,7 +357,7 @@
       socket.on("game:over", () => {
         document.getElementById("gameArea").style.display = "none";
         document.getElementById("resultOverlay").style.display = "none";
-        document.getElementById("rankBadge").style.display = "none"; // Hide small badge
+        document.getElementById("rankBadge").style.display = "none";
 
         document.getElementById("finalRankDisplay").innerText =
           `#${myCurrentRank}`;

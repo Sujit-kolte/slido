@@ -3,52 +3,73 @@ import Session from "../models/session.model.js";
 import Question from "../models/question.model.js";
 
 /* =====================================================
-   1. JOIN SESSION (FRONTEND SAFE)
+   1. JOIN SESSION (RECONNECT OR NEW ENTRY)
 ===================================================== */
 export const joinSession = async (req, res, next) => {
   try {
-    const { name, sessionCode } = req.body;
+    // ⬇️ Update: Accept 'existingParticipantId' from frontend
+    const { name, sessionCode, existingParticipantId } = req.body;
 
-    if (!name || name.trim().length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid name",
-      });
-    }
-
+    // 1. Validate Session
     const session = await Session.findOne({
       sessionCode: { $regex: new RegExp(`^${sessionCode}$`, "i") },
     });
 
     if (!session) {
-      return res.status(404).json({
-        success: false,
-        message: "Session not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Session not found" });
     }
 
     if (!["WAITING", "ACTIVE"].includes(session.status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Session closed",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Session closed" });
     }
 
-    let participant = await Participant.findOne({
+    // =========================================================
+    // 🔄 LOGIC A: RECONNECT EXISTING USER (If ID provided)
+    // =========================================================
+    if (existingParticipantId) {
+      const existingUser = await Participant.findOne({
+        _id: existingParticipantId,
+        sessionId: session.sessionCode,
+      });
+
+      if (existingUser) {
+        return res.json({
+          success: true,
+          message: "Welcome back!",
+          data: {
+            participantId: existingUser._id,
+            name: existingUser.name,
+            uniqueCode: existingUser.participantNumber,
+            sessionCode: session.sessionCode,
+            sessionTitle: session.title || "Untitled Session",
+            totalScore: existingUser.totalScore, // Send score so UI updates
+          },
+        });
+      }
+    }
+
+    // =========================================================
+    // 🆕 LOGIC B: CREATE NEW USER (Allows Duplicate Names)
+    // =========================================================
+
+    // Validate Name only if creating NEW user
+    if (!name || name.trim().length < 2) {
+      return res.status(400).json({ success: false, message: "Invalid name" });
+    }
+
+    // Generate random 6-char code
+    const uniqueCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // 🔥 Force Create New Entry (We removed the 'findOne({ name })' check)
+    const participant = await Participant.create({
       sessionId: session.sessionCode,
       name: name.trim(),
+      participantNumber: uniqueCode,
     });
-
-    if (!participant) {
-      // ✅ NEW LOGIC: 6-char Alphanumeric (e.g., "7K9P2X")
-      const uniqueCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
-      participant = await Participant.create({
-        sessionId: session.sessionCode,
-        name: name.trim(),
-        participantNumber: uniqueCode 
-      });
-    }
 
     res.json({
       success: true,
@@ -97,19 +118,20 @@ export const submitAnswer = async (req, res, next) => {
 
     // 🟢 SMART CHECKING: Ignore Case & Spaces
     const correctOptionObj = question.options.find((o) => o.isCorrect);
-    
-    // Safety check in case correctOptionObj is undefined
-    const correctText = correctOptionObj ? correctOptionObj.text.trim().toLowerCase() : "";
-    const userText = selectedOption ? String(selectedOption).trim().toLowerCase() : "";
+
+    const correctText = correctOptionObj
+      ? correctOptionObj.text.trim().toLowerCase()
+      : "";
+    const userText = selectedOption
+      ? String(selectedOption).trim().toLowerCase()
+      : "";
 
     const isCorrect = correctText === userText;
 
     const safeTime = Math.max(0, Math.min(Number(timeLeft || 0), 15));
-    
-    // Give 10 pts base + speed bonus. 0 if wrong (don't subtract).
-    const scoreDelta = isCorrect
-      ? 10 + Math.round((safeTime / 15) * 10)
-      : 0;
+
+    // Give 10 pts base + speed bonus. 0 if wrong.
+    const scoreDelta = isCorrect ? 10 + Math.round((safeTime / 15) * 10) : 0;
 
     // 🔥 ATOMIC UPDATE
     const result = await Participant.updateOne(
@@ -123,7 +145,7 @@ export const submitAnswer = async (req, res, next) => {
           attemptedQuestions: questionId,
           ...(isCorrect && { rightAnswersBucket: questionId }),
         },
-      }
+      },
     );
 
     if (result.matchedCount === 0) {
@@ -134,15 +156,12 @@ export const submitAnswer = async (req, res, next) => {
     }
 
     // 🔄 Update Leaderboard
-    req.app
-      .get("io")
-      ?.to(session.sessionCode)
-      ?.emit("leaderboard:update");
+    req.app.get("io")?.to(session.sessionCode)?.emit("leaderboard:update");
 
     res.json({
       success: true,
       message: isCorrect ? "Correct" : "Wrong",
-      added: scoreDelta
+      added: scoreDelta,
     });
   } catch (err) {
     next(err);

@@ -337,7 +337,8 @@
 
   try {
     const res = await fetch(
-      `${API_URL}/sessions/${sessionCode}/permanent`,
+`${API_URL}/sessions/code/${sessionCode}/permanent`
+,
       {
         method: "DELETE",
         headers: {

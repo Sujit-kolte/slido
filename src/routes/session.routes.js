@@ -31,9 +31,10 @@ router.delete("/:sessionId", adminAuth, deleteSession);
 router.delete("/:sessionId/data", adminAuth, resetSessionData);
 
 router.delete(
-  "/:sessionCode/permanent",
+  "/code/:sessionCode/permanent",
   adminAuth,
   deleteSessionPermanently
 );
+
 
 export default router;

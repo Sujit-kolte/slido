@@ -42,26 +42,37 @@ io.on("connection", (socket) => {
   console.log("🔌 Connected:", socket.id);
 
   socket.on("join:session", (code) => {
-    if (code) socket.join(String(code).toUpperCase());
+    // 🟢 FIX: Sanitize code to prevent mismatch (e.g. " QUIZ101 " vs "QUIZ101")
+    if (code) {
+      const cleanCode = String(code).trim().toUpperCase();
+      socket.join(cleanCode);
+      console.log(`Dm User ${socket.id} joined room: ${cleanCode}`);
+    }
   });
 
   socket.on("sync:state", async (sessionCode) => {
     try {
-      const code = String(sessionCode).toUpperCase();
+      const code = String(sessionCode).trim().toUpperCase();
       const session = await Session.findOne({ sessionCode: code });
 
+      // If no active question, tell client to wait
       if (!session || !session.currentQuestionId || !session.questionEndsAt) {
         socket.emit("sync:idle");
         return;
       }
+      
       const remaining = Math.floor((session.questionEndsAt.getTime() - Date.now()) / 1000);
+      
+      // If time expired, wait for next
       if (remaining <= 0) {
         socket.emit("sync:idle");
         return;
       }
+
       const q = await Question.findById(session.currentQuestionId);
       if (!q) return;
 
+      // Send the current question to the late joiner
       socket.emit("game:question", {
         question: {
           _id: q._id,
@@ -77,18 +88,16 @@ io.on("connection", (socket) => {
   });
 
   /* ==================================================
-     🟢 FIXED: ROBUST GAME START HANDLER
-     This forces the game to start even if the API 
-     is slow to update the status.
+     GAME START HANDLER
   ================================================== */
   socket.on("admin:start_game", async (sessionCode) => {
     try {
-      const code = String(sessionCode).toUpperCase();
-      console.log(`🚀 Request to start game: ${code}`);
+      const code = String(sessionCode).trim().toUpperCase();
+      console.log(`🚀 Admin requested start for: ${code}`);
 
-      // 1. Prevent double starts
+      // 1. Check if locked
       if (activeGames.has(code)) {
-        console.log(`⚠️ Game ${code} is already running.`);
+        console.log(`⚠️ Game ${code} is ALREADY RUNNING. Ignoring start request.`);
         return;
       }
 
@@ -99,53 +108,63 @@ io.on("connection", (socket) => {
         return;
       }
 
-      // 3. 🟢 FORCE STATUS UPDATE (Fixes the race condition)
+      // 3. Force Status to ACTIVE
       if (session.status !== "ACTIVE") {
-        console.log("⚡ Forcing status to ACTIVE...");
+        console.log("⚡ Forcing DB status to ACTIVE...");
         await Session.updateOne({ sessionCode: code }, { status: "ACTIVE", startTime: new Date() });
       }
 
-      // 4. Lock this session
+      // 4. Lock & Start
       activeGames.set(code, true);
       io.to(code).emit("game:started");
 
-      // 5. Fetch Questions
       const questions = await Question.find({ sessionId: code }).sort({ order: 1 });
       
       if (!questions.length) {
-        console.error("❌ ERROR: No questions found for session:", code);
-        activeGames.delete(code); // Release lock
+        console.error("❌ ERROR: No questions found. Unlocking.");
+        activeGames.delete(code);
         return;
       }
 
       console.log(`✅ Starting Loop with ${questions.length} questions.`);
       
-      // 6. Run the Loop
+      // 5. Run Loop
       await runGameLoop(io, code, questions);
       
-      activeGames.delete(code); // Release lock when done
+      // 6. Unlock when finished
+      activeGames.delete(code);
+      console.log(`LG Game loop finished. Unlocked ${code}`);
+
     } catch (e) {
-      activeGames.delete(String(sessionCode).toUpperCase());
+      activeGames.delete(String(sessionCode).trim().toUpperCase());
       console.error("❌ Start Game Error:", e);
     }
   });
 });
 
-/* ================= CRASH-PROOF GAME LOOP ================= */
+/* ================= CRASH-PROOF LOOP WITH KILL SWITCH ================= */
 async function runGameLoop(io, room, questions) {
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
 
     try {
+      // 🟢 KILL SWITCH: Check if admin stopped the game
+      const checkSession = await Session.findOne({ sessionCode: room }).select("status");
+      if (!checkSession || checkSession.status !== "ACTIVE") {
+        console.log("🛑 Game detected as STOPPED/COMPLETED. Exiting loop immediately.");
+        io.to(room).emit("game:over"); // Optional: Send game over if stopped manually
+        break; // Exit the for loop
+      }
+
       console.log(`👉 Sending Question ${i + 1}/${questions.length}`);
 
-      // 1. Send Question Data to Database
+      // 1. Update DB
       await Session.findOneAndUpdate(
         { sessionCode: room },
         { currentQuestionId: q._id, questionEndsAt: new Date(Date.now() + 15000) }
       );
 
-      // 2. Broadcast to Users (This removes "Waiting for host")
+      // 2. Broadcast Question
       io.to(room).emit("game:question", {
         question: {
           _id: q._id,
@@ -157,18 +176,16 @@ async function runGameLoop(io, room, questions) {
         time: 15,
       });
 
-      // 3. Wait 15s (Question Timer)
+      // 3. Wait 15s
       await sleep(15000);
 
-      // 4. Send Correct Answer
+      // 4. Send Result
       const correctOpt = q.options ? q.options.find((o) => o.isCorrect) : null;
       io.to(room).emit("game:result", {
         correctAnswer: correctOpt ? correctOpt.text : "Error: No Answer",
       });
 
-      // ======================================================
-      // 🟢 RANK CALCULATION
-      // ======================================================
+      // 5. Rank Calc
       try {
         const allPlayers = await Participant.find({ sessionId: room }) 
           .sort({ totalScore: -1 })
@@ -186,7 +203,7 @@ async function runGameLoop(io, room, questions) {
         console.error("⚠️ Rank Calc Warning:", err.message);
       }
 
-      // 5. Cleanup & Cooling
+      // 6. Cleanup & Cooling
       await Session.findOneAndUpdate(
         { sessionCode: room },
         { currentQuestionId: null, questionEndsAt: null }
@@ -194,7 +211,7 @@ async function runGameLoop(io, room, questions) {
 
       io.to(room).emit("leaderboard:update");
 
-      // 6. Wait 5s (Leaderboard Timer)
+      // 7. Wait 5s
       await sleep(5000);
 
     } catch (err) {
@@ -209,20 +226,24 @@ async function runGameLoop(io, room, questions) {
   // ======================================================
   // 🏁 GAME OVER
   // ======================================================
-  try {
-    const winners = await Participant.find({ sessionId: room })
-      .sort({ totalScore: -1 })
-      .limit(3)
-      .select("name totalScore")
-      .lean();
+  // Only send Game Over if we finished normally (didn't break early)
+  const finalCheck = await Session.findOne({ sessionCode: room }).select("status");
+  if (finalCheck && finalCheck.status === "ACTIVE") {
+    try {
+      const winners = await Participant.find({ sessionId: room })
+        .sort({ totalScore: -1 })
+        .limit(3)
+        .select("name totalScore")
+        .lean();
 
-    await Session.findOneAndUpdate({ sessionCode: room }, { status: "COMPLETED" });
-    
-    console.log(`🏁 Game ${room} Completed.`);
-    io.to(room).emit("game:over", { winners });
-    
-  } catch (e) {
-    console.error("❌ Game Over Logic Error:", e);
+      await Session.findOneAndUpdate({ sessionCode: room }, { status: "COMPLETED" });
+      
+      console.log(`🏁 Game ${room} Completed.`);
+      io.to(room).emit("game:over", { winners });
+      
+    } catch (e) {
+      console.error("❌ Game Over Logic Error:", e);
+    }
   }
 }
 

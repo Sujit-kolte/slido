@@ -1,16 +1,15 @@
 import Participant from "../models/participant.model.js";
 import Session from "../models/session.model.js";
 import Question from "../models/question.model.js";
+import Response from "../models/response.model.js"; 
 
 /* =====================================================
    1. JOIN SESSION (RECONNECT OR NEW ENTRY)
 ===================================================== */
 export const joinSession = async (req, res, next) => {
   try {
-    // ⬇️ Update: Accept 'existingParticipantId' from frontend
     const { name, sessionCode, existingParticipantId } = req.body;
 
-    // 1. Validate Session
     const session = await Session.findOne({
       sessionCode: { $regex: new RegExp(`^${sessionCode}$`, "i") },
     });
@@ -27,9 +26,6 @@ export const joinSession = async (req, res, next) => {
         .json({ success: false, message: "Session closed" });
     }
 
-    // =========================================================
-    // 🔄 LOGIC A: RECONNECT EXISTING USER (If ID provided)
-    // =========================================================
     if (existingParticipantId) {
       const existingUser = await Participant.findOne({
         _id: existingParticipantId,
@@ -46,25 +42,18 @@ export const joinSession = async (req, res, next) => {
             uniqueCode: existingUser.participantNumber,
             sessionCode: session.sessionCode,
             sessionTitle: session.title || "Untitled Session",
-            totalScore: existingUser.totalScore, // Send score so UI updates
+            totalScore: existingUser.totalScore,
           },
         });
       }
     }
 
-    // =========================================================
-    // 🆕 LOGIC B: CREATE NEW USER (Allows Duplicate Names)
-    // =========================================================
-
-    // Validate Name only if creating NEW user
     if (!name || name.trim().length < 2) {
       return res.status(400).json({ success: false, message: "Invalid name" });
     }
 
-    // Generate random 6-char code
     const uniqueCode = Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // 🔥 Force Create New Entry (We removed the 'findOne({ name })' check)
     const participant = await Participant.create({
       sessionId: session.sessionCode,
       name: name.trim(),
@@ -87,13 +76,12 @@ export const joinSession = async (req, res, next) => {
 };
 
 /* =====================================================
-   2. SUBMIT ANSWER (SMART CHECKING + ATOMIC)
+   2. SUBMIT ANSWER (SMART CHECKING + HISTORY SAVE)
 ===================================================== */
 export const submitAnswer = async (req, res, next) => {
   try {
     const { participantId, questionId, selectedOption, timeLeft } = req.body;
 
-    // 🔒 Validate session & active question
     const session = await Session.findOne({ currentQuestionId: questionId });
 
     if (
@@ -116,7 +104,6 @@ export const submitAnswer = async (req, res, next) => {
       });
     }
 
-    // 🟢 SMART CHECKING: Ignore Case & Spaces
     const correctOptionObj = question.options.find((o) => o.isCorrect);
 
     const correctText = correctOptionObj
@@ -127,13 +114,10 @@ export const submitAnswer = async (req, res, next) => {
       : "";
 
     const isCorrect = correctText === userText;
-
     const safeTime = Math.max(0, Math.min(Number(timeLeft || 0), 15));
-
-    // Give 10 pts base + speed bonus. 0 if wrong.
     const scoreDelta = isCorrect ? 10 + Math.round((safeTime / 15) * 10) : 0;
 
-    // 🔥 ATOMIC UPDATE
+    // 1. ATOMIC SCORE UPDATE
     const result = await Participant.updateOne(
       {
         _id: participantId,
@@ -155,7 +139,22 @@ export const submitAnswer = async (req, res, next) => {
       });
     }
 
-    // 🔄 Update Leaderboard
+    // 2. 🟢 SAVE HISTORY (Critical for "Review Answers" feature)
+    // We catch errors here to prevent duplicates from crashing the request
+    try {
+      await Response.create({
+        questionId,
+        participantId,
+        selectedOption,
+        isCorrect,
+        marksObtained: scoreDelta,
+        sessionId: session.sessionCode // Helpful for bulk cleanup
+      });
+    } catch (e) {
+      console.log("History save skipped (duplicate)");
+    }
+
+    // 3. Update Leaderboard
     req.app.get("io")?.to(session.sessionCode)?.emit("leaderboard:update");
 
     res.json({
@@ -195,6 +194,87 @@ export const getLeaderboard = async (req, res, next) => {
       count: leaderboard.length,
       data: leaderboard,
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =====================================================
+   4. GET STATS (Correct, Wrong, Timeout)
+===================================================== */
+export const getParticipantStats = async (req, res, next) => {
+  try {
+    const { participantId } = req.params;
+
+    const participant = await Participant.findById(participantId);
+    if (!participant) {
+      return res.status(404).json({ success: false, message: "Participant not found" });
+    }
+
+    const totalQuestions = await Question.countDocuments({
+      sessionId: participant.sessionId
+    });
+
+    const correct = participant.rightAnswersBucket.length;
+    const attempted = participant.attemptedQuestions.length;
+    
+    const wrong = attempted - correct;
+    const timeout = totalQuestions - attempted;
+
+    res.json({
+      success: true,
+      data: {
+        correct,
+        wrong,
+        timeout,
+        totalScore: participant.totalScore
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/* =====================================================
+   5. GET FULL GAME HISTORY
+===================================================== */
+export const getGameHistory = async (req, res, next) => {
+  try {
+    const { participantId } = req.params;
+
+    const participant = await Participant.findById(participantId);
+    if (!participant) return res.status(404).json({ message: "Participant not found" });
+
+    // 1. Get Questions
+    const questions = await Question.find({ sessionId: participant.sessionId })
+      .sort({ order: 1 })
+      .lean();
+
+    // 2. Get Responses
+    const responses = await Response.find({ participantId }).lean();
+
+    // 3. Merge
+    const history = questions.map(q => {
+      const userResponse = responses.find(r => String(r.questionId) === String(q._id));
+      const correctOption = q.options.find(o => o.isCorrect);
+      
+      let status = "TIMEOUT";
+      let userSelected = "No Attempt";
+
+      if (userResponse) {
+        status = userResponse.isCorrect ? "CORRECT" : "WRONG";
+        userSelected = userResponse.selectedOption;
+      }
+
+      return {
+        questionText: q.questionText,
+        correctAnswer: correctOption ? correctOption.text : "N/A",
+        userSelected: userSelected,
+        status: status 
+      };
+    });
+
+    res.json({ success: true, data: history });
   } catch (err) {
     next(err);
   }

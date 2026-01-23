@@ -129,33 +129,27 @@ async function runGameLoop(io, room, questions) {
     });
 
     // ======================================================
-    // 🟢 RANK CALCULATION (FIXED)
+    // 🟢 RANK CALCULATION
     // ======================================================
     try {
-      // ✅ FIX: Use 'sessionId' because that is what your model uses
-     // 1. Get all players for this session
-// ✅ FIX: Use 'sessionId' (matches your Participant Model)
-const allPlayers = await Participant.find({ sessionId: room }) 
-  .sort({ totalScore: -1 })
-  .lean();
+      const allPlayers = await Participant.find({ sessionId: room }) 
+        .sort({ totalScore: -1 })
+        .lean();
 
-      // 2. Map to a clean list
+      // Map to a clean list
       const rankList = allPlayers.map((p, index) => ({
-        id: String(p._id), // Ensure it's a string for comparison
+        id: String(p._id),
         rank: index + 1,
         score: p.totalScore || 0,
         name: p.name
       }));
 
-      console.log(`📊 Sending Ranks for ${room}:`, rankList.length, "players");
-
-      // 3. Send to everyone
+      // Send to everyone
       io.to(room).emit("game:ranks", rankList);
 
     } catch (err) {
       console.error("❌ Rank Calculation Failed:", err);
     }
-    // ======================================================
 
     // 4. Cleanup & Cooling
     await Session.findOneAndUpdate(
@@ -169,8 +163,22 @@ const allPlayers = await Participant.find({ sessionId: room })
     await sleep(5000);
   }
 
+  // ======================================================
+  // 🏁 GAME OVER: FETCH WINNERS & BROADCAST
+  // ======================================================
+  
+  // 1. Fetch Top 3 Winners
+  const winners = await Participant.find({ sessionId: room })
+    .sort({ totalScore: -1 })
+    .limit(3)
+    .select("name totalScore")
+    .lean();
+
+  // 2. Mark Session Completed
   await Session.findOneAndUpdate({ sessionCode: room }, { status: "COMPLETED" });
-  io.to(room).emit("game:over");
+  
+  // 3. Emit Game Over with Winners Data
+  io.to(room).emit("game:over", { winners });
 }
 
 function sleep(ms) {

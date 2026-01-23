@@ -100,15 +100,88 @@
       }
 
       @keyframes popIn {
-        from {
-          transform: scale(0.5);
-          opacity: 0;
-        }
-        to {
-          transform: scale(1);
-          opacity: 1;
-        }
+        from { transform: scale(0.5); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
       }
+
+      /* =========================================
+         🟢 NEW STYLES FOR GAME OVER SCREEN
+      ========================================= */
+      
+      /* Winners Box */
+      .winners-box {
+        background: #1f2937;
+        border: 1px solid #4b5563;
+        border-radius: 12px;
+        padding: 15px;
+        margin-bottom: 20px;
+        width: 100%;
+      }
+      .winner-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 8px 12px;
+        margin-bottom: 5px;
+        background: #374151;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 14px;
+      }
+      .rank-1 { border-left: 4px solid #fbbf24; color: #fbbf24; } /* Gold */
+      .rank-2 { border-left: 4px solid #94a3b8; color: #94a3b8; } /* Silver */
+      .rank-3 { border-left: 4px solid #b45309; color: #b45309; } /* Bronze */
+      .w-score { color: #fff; font-size: 14px; }
+
+      /* Stats Grid */
+      .stats-grid {
+        display: flex; 
+        gap: 10px; 
+        margin-bottom: 20px; 
+        justify-content: center;
+        width: 100%;
+      }
+      .stat-box {
+        padding: 10px; 
+        border-radius: 10px; 
+        flex: 1;
+        text-align: center;
+      }
+
+      /* History List */
+      .history-container {
+        max-height: 250px;
+        overflow-y: auto;
+        margin-top: 15px;
+        width: 100%;
+        text-align: left;
+        padding-right: 5px;
+      }
+      .history-item {
+        background: #374151;
+        padding: 12px;
+        margin-bottom: 8px;
+        border-radius: 8px;
+        border-left: 5px solid #6b7280;
+        font-size: 13px;
+      }
+      .status-CORRECT { border-left-color: #10b981; }
+      .status-WRONG { border-left-color: #ef4444; }
+      .status-TIMEOUT { border-left-color: #f59e0b; }
+      
+      .h-badge {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: bold;
+        color: white;
+        margin-bottom: 4px;
+      }
+      .bg-CORRECT { background: #10b981; }
+      .bg-WRONG { background: #ef4444; }
+      .bg-TIMEOUT { background: #f59e0b; }
+
     </style>
   </head>
 
@@ -154,45 +227,70 @@
         justify-content: center;
         align-items: center;
         z-index: 100;
+        padding: 20px;
+        overflow-y: auto; 
       ">
-      <h1 style="color: #fbbf24; font-size: 40px; margin-bottom: 10px">
-        🏆 Quiz Completed!
-      </h1>
-      <div
-        style="
-          background: #1f2937;
-          padding: 30px;
-          border-radius: 15px;
-          text-align: center;
-          border: 2px solid #374151;
-          min-width: 280px;
-        ">
-        <p style="color: #9ca3af; margin: 0">YOUR FINAL RANK</p>
-        <h2
-          id="finalRankDisplay"
-          style="font-size: 60px; margin: 10px 0; color: white">
-          #--
-        </h2>
-        <p
-          id="finalScoreDisplay"
-          style="color: #34d399; font-weight: bold; font-size: 24px">
-          0 pts
-        </p>
+      
+      <div style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center;">
+        
+        <h1 style="color: #fbbf24; font-size: 32px; margin-bottom: 15px; margin-top: 0;">
+          🏆 Quiz Completed!
+        </h1>
+
+        <div id="winnersContainer" class="winners-box hidden">
+          <h3 style="margin: 0 0 10px 0; color: white; text-align: center; font-size: 16px;">🎉 Top Winners</h3>
+          <div id="winnersList"></div>
+        </div>
+
+        <div style="background: #1f2937; padding: 20px; border-radius: 15px; width: 100%; box-sizing: border-box; border: 1px solid #374151;">
+          
+          <div style="text-align: center; margin-bottom: 20px;">
+            <p style="color: #9ca3af; margin: 0; font-size: 12px;">YOUR FINAL RANK</p>
+            <h2 id="finalRankDisplay" style="font-size: 42px; margin: 5px 0; color: white">#--</h2>
+            <p id="finalScoreDisplay" style="color: #34d399; font-weight: bold; font-size: 18px">0 pts</p>
+          </div>
+
+          <div class="stats-grid">
+            <div class="stat-box" style="background: #059669;">
+              <div style="font-size: 10px; opacity: 0.9;">CORRECT</div>
+              <div id="statCorrect" style="font-size: 20px; font-weight: bold;">--</div>
+            </div>
+            <div class="stat-box" style="background: #dc2626;">
+              <div style="font-size: 10px; opacity: 0.9;">WRONG</div>
+              <div id="statWrong" style="font-size: 20px; font-weight: bold;">--</div>
+            </div>
+            <div class="stat-box" style="background: #d97706;">
+              <div style="font-size: 10px; opacity: 0.9;">TIMEOUT</div>
+              <div id="statTimeout" style="font-size: 20px; font-weight: bold;">--</div>
+            </div>
+          </div>
+
+          <div style="border-top: 1px solid #4b5563; padding-top: 15px;">
+            <h3 style="margin: 0; color: white; font-size: 16px;">Review Answers</h3>
+            <div id="historyList" class="history-container">
+              <div style="text-align:center; color:#9ca3af;">Loading review...</div>
+            </div>
+          </div>
+
+        </div>
+
+        <button
+          onclick="location.href = 'user.html'"
+          style="
+            margin-top: 20px;
+            padding: 12px 30px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+          ">
+          Exit to Home
+        </button>
       </div>
-      <button
-        onclick="location.href = 'user.html'"
-        style="
-          margin-top: 30px;
-          padding: 10px 20px;
-          background: #2563eb;
-          color: white;
-          border: none;
-          border-radius: 8px;
-          font-weight: bold;
-          cursor: pointer;
-        ">
-        Exit
-      </button>
     </div>
 
     <script>
@@ -201,8 +299,6 @@
       let myCurrentRank = "--";
       let myCurrentScore = 0;
 
-      // 🟢 HYBRID CHECK: Look in LocalStorage FIRST, then fallback to SessionStorage
-      // This fixes the "Session expired" error if data was saved in the wrong place.
       const SESSION_CODE =
         localStorage.getItem("SESSION_CODE") ||
         sessionStorage.getItem("SESSION_CODE");
@@ -216,7 +312,6 @@
         localStorage.getItem("PLAYER_CODE") ||
         sessionStorage.getItem("PLAYER_CODE");
 
-      // Debugging: Print to console so you can see what is happening
       console.log("Login Check:", { SESSION_CODE, PARTICIPANT_ID });
 
       if (!SESSION_CODE || !PARTICIPANT_ID) {
@@ -224,18 +319,13 @@
         location.href = "user.html";
       }
 
-      // 🟢 Display Name + Unique Code
       if (PLAYER_NAME) {
         document.getElementById("playerInfo").innerText = PLAYER_CODE
           ? `${PLAYER_NAME} (${PLAYER_CODE})`
           : PLAYER_NAME;
       }
 
-      // ==========================================
-      // 🔌 CONNECTION SETUP
-      // ==========================================
-
-      // ✅ Using your Live Render Link
+      // ✅ RENDER URL
       const API_URL = "https://gdg-quiz-app.onrender.com";
 
       const socket = io(API_URL, {
@@ -258,6 +348,8 @@
         document.getElementById("rankBadge").classList.add("hidden");
         document.getElementById("resultOverlay").classList.add("hidden");
         document.getElementById("rankContainer").classList.add("hidden");
+        // Hide Game Over if previously shown
+        document.getElementById("gameOverCard").classList.add("hidden");
 
         clearInterval(timerInterval);
         myAnswer = null;
@@ -354,17 +446,69 @@
         }
       });
 
-      socket.on("game:over", () => {
+      // 🟢 GAME OVER LISTENER
+      socket.on("game:over", async (data) => {
         document.getElementById("gameArea").style.display = "none";
         document.getElementById("resultOverlay").style.display = "none";
         document.getElementById("rankBadge").style.display = "none";
 
-        document.getElementById("finalRankDisplay").innerText =
-          `#${myCurrentRank}`;
-        document.getElementById("finalScoreDisplay").innerText =
-          `${myCurrentScore} pts`;
+        // 1. Render Top 3 Winners
+        if (data && data.winners && data.winners.length > 0) {
+          const list = document.getElementById("winnersList");
+          list.innerHTML = "";
+          data.winners.forEach((p, index) => {
+            const div = document.createElement("div");
+            div.className = `winner-row rank-${index + 1}`;
+            let medal = "🥇";
+            if(index === 1) medal = "🥈";
+            if(index === 2) medal = "🥉";
+            div.innerHTML = `<span>${medal} ${p.name}</span><span class="w-score">${p.totalScore} pts</span>`;
+            list.appendChild(div);
+          });
+          document.getElementById("winnersContainer").classList.remove("hidden");
+        }
 
+        // 2. Local Rank
+        document.getElementById("finalRankDisplay").innerText = `#${myCurrentRank}`;
+        document.getElementById("finalScoreDisplay").innerText = `${myCurrentScore} pts`;
+
+        // 3. Show Card
         document.getElementById("gameOverCard").classList.remove("hidden");
+
+        // 4. Fetch Stats
+        try {
+          const res = await fetch(`${API_URL}/api/participants/stats/${PARTICIPANT_ID}`);
+          const stats = await res.json();
+          if (stats.success) {
+            document.getElementById("statCorrect").innerText = stats.data.correct;
+            document.getElementById("statWrong").innerText = stats.data.wrong;
+            document.getElementById("statTimeout").innerText = stats.data.timeout;
+          }
+        } catch (e) { console.error("Stats error", e); }
+
+        // 5. Fetch History
+        const historyList = document.getElementById("historyList");
+        try {
+          const res = await fetch(`${API_URL}/api/participants/history/${PARTICIPANT_ID}`);
+          const hist = await res.json();
+          if (hist.success) {
+            historyList.innerHTML = "";
+            hist.data.forEach((item, index) => {
+              const div = document.createElement("div");
+              div.className = `history-item status-${item.status}`;
+              div.innerHTML = `
+                <div class="h-badge bg-${item.status}">${item.status}</div>
+                <div style="font-weight:bold; margin-bottom:5px;">Q${index + 1}: ${item.questionText}</div>
+                <div style="color: #9ca3af; font-size: 13px;">
+                  Your Answer: <span style="color:white;">${item.userSelected}</span>
+                </div>
+                ${item.status !== "CORRECT" ? 
+                  `<div style="color: #10b981; font-size: 13px;">Correct: <b>${item.correctAnswer}</b></div>` : ""}
+              `;
+              historyList.appendChild(div);
+            });
+          }
+        } catch (e) { console.error("History error", e); }
       });
 
       function startTimer() {

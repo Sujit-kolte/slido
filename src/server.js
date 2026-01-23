@@ -21,6 +21,7 @@ mongoose
   })
   .then(async () => {
     console.log("✅ MongoDB Connected");
+    // Reset any stuck active sessions on startup
     await Session.updateMany(
       { status: "ACTIVE" },
       { currentQuestionId: null, questionEndsAt: null }
@@ -75,110 +76,154 @@ io.on("connection", (socket) => {
     }
   });
 
+  /* ==================================================
+     🟢 FIXED: ROBUST GAME START HANDLER
+     This forces the game to start even if the API 
+     is slow to update the status.
+  ================================================== */
   socket.on("admin:start_game", async (sessionCode) => {
     try {
       const code = String(sessionCode).toUpperCase();
-      if (activeGames.has(code)) return;
+      console.log(`🚀 Request to start game: ${code}`);
 
+      // 1. Prevent double starts
+      if (activeGames.has(code)) {
+        console.log(`⚠️ Game ${code} is already running.`);
+        return;
+      }
+
+      // 2. Find Session
       const session = await Session.findOne({ sessionCode: code });
-      if (!session || session.status !== "ACTIVE") return;
+      if (!session) {
+        console.error("❌ Session not found in DB");
+        return;
+      }
 
+      // 3. 🟢 FORCE STATUS UPDATE (Fixes the race condition)
+      if (session.status !== "ACTIVE") {
+        console.log("⚡ Forcing status to ACTIVE...");
+        await Session.updateOne({ sessionCode: code }, { status: "ACTIVE", startTime: new Date() });
+      }
+
+      // 4. Lock this session
       activeGames.set(code, true);
       io.to(code).emit("game:started");
 
+      // 5. Fetch Questions
       const questions = await Question.find({ sessionId: code }).sort({ order: 1 });
-      if (!questions.length) return;
+      
+      if (!questions.length) {
+        console.error("❌ ERROR: No questions found for session:", code);
+        activeGames.delete(code); // Release lock
+        return;
+      }
 
+      console.log(`✅ Starting Loop with ${questions.length} questions.`);
+      
+      // 6. Run the Loop
       await runGameLoop(io, code, questions);
-      activeGames.delete(code);
+      
+      activeGames.delete(code); // Release lock when done
     } catch (e) {
       activeGames.delete(String(sessionCode).toUpperCase());
-      console.error("❌ Game error:", e);
+      console.error("❌ Start Game Error:", e);
     }
   });
 });
 
-/* ================= GAME LOOP ================= */
+/* ================= CRASH-PROOF GAME LOOP ================= */
 async function runGameLoop(io, room, questions) {
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
 
-    // 1. Send Question
-    await Session.findOneAndUpdate(
-      { sessionCode: room },
-      { currentQuestionId: q._id, questionEndsAt: new Date(Date.now() + 15000) }
-    );
-
-    io.to(room).emit("game:question", {
-      question: {
-        _id: q._id,
-        questionText: q.questionText,
-        options: q.options.map((o) => ({ text: o.text })),
-      },
-      qNum: i + 1,
-      total: questions.length,
-      time: 15,
-    });
-
-    // 2. Wait 15s
-    await sleep(15000);
-
-    // 3. Send Correct Answer
-    io.to(room).emit("game:result", {
-      correctAnswer: q.options.find((o) => o.isCorrect)?.text,
-    });
-
-    // ======================================================
-    // 🟢 RANK CALCULATION
-    // ======================================================
     try {
-      const allPlayers = await Participant.find({ sessionId: room }) 
-        .sort({ totalScore: -1 })
-        .lean();
+      console.log(`👉 Sending Question ${i + 1}/${questions.length}`);
 
-      // Map to a clean list
-      const rankList = allPlayers.map((p, index) => ({
-        id: String(p._id),
-        rank: index + 1,
-        score: p.totalScore || 0,
-        name: p.name
-      }));
+      // 1. Send Question Data to Database
+      await Session.findOneAndUpdate(
+        { sessionCode: room },
+        { currentQuestionId: q._id, questionEndsAt: new Date(Date.now() + 15000) }
+      );
 
-      // Send to everyone
-      io.to(room).emit("game:ranks", rankList);
+      // 2. Broadcast to Users (This removes "Waiting for host")
+      io.to(room).emit("game:question", {
+        question: {
+          _id: q._id,
+          questionText: q.questionText,
+          options: (q.options || []).map((o) => ({ text: o.text })),
+        },
+        qNum: i + 1,
+        total: questions.length,
+        time: 15,
+      });
+
+      // 3. Wait 15s (Question Timer)
+      await sleep(15000);
+
+      // 4. Send Correct Answer
+      const correctOpt = q.options ? q.options.find((o) => o.isCorrect) : null;
+      io.to(room).emit("game:result", {
+        correctAnswer: correctOpt ? correctOpt.text : "Error: No Answer",
+      });
+
+      // ======================================================
+      // 🟢 RANK CALCULATION
+      // ======================================================
+      try {
+        const allPlayers = await Participant.find({ sessionId: room }) 
+          .sort({ totalScore: -1 })
+          .lean();
+
+        const rankList = allPlayers.map((p, index) => ({
+          id: String(p._id),
+          rank: index + 1,
+          score: p.totalScore || 0,
+          name: p.name
+        }));
+
+        io.to(room).emit("game:ranks", rankList);
+      } catch (err) {
+        console.error("⚠️ Rank Calc Warning:", err.message);
+      }
+
+      // 5. Cleanup & Cooling
+      await Session.findOneAndUpdate(
+        { sessionCode: room },
+        { currentQuestionId: null, questionEndsAt: null }
+      );
+
+      io.to(room).emit("leaderboard:update");
+
+      // 6. Wait 5s (Leaderboard Timer)
+      await sleep(5000);
 
     } catch (err) {
-      console.error("❌ Rank Calculation Failed:", err);
+      console.error(`❌ CRASHED on Question ${i + 1}:`, err);
+      console.log("⚠️ Skipping to next question in 3 seconds...");
+      io.to(room).emit("game:error", { message: "Question Error. Skipping..." });
+      await sleep(3000);
+      continue; 
     }
-
-    // 4. Cleanup & Cooling
-    await Session.findOneAndUpdate(
-      { sessionCode: room },
-      { currentQuestionId: null, questionEndsAt: null }
-    );
-
-    io.to(room).emit("leaderboard:update");
-
-    // 5. WAIT 5 SECONDS (This is when user sees rank)
-    await sleep(5000);
   }
 
   // ======================================================
-  // 🏁 GAME OVER: FETCH WINNERS & BROADCAST
+  // 🏁 GAME OVER
   // ======================================================
-  
-  // 1. Fetch Top 3 Winners
-  const winners = await Participant.find({ sessionId: room })
-    .sort({ totalScore: -1 })
-    .limit(3)
-    .select("name totalScore")
-    .lean();
+  try {
+    const winners = await Participant.find({ sessionId: room })
+      .sort({ totalScore: -1 })
+      .limit(3)
+      .select("name totalScore")
+      .lean();
 
-  // 2. Mark Session Completed
-  await Session.findOneAndUpdate({ sessionCode: room }, { status: "COMPLETED" });
-  
-  // 3. Emit Game Over with Winners Data
-  io.to(room).emit("game:over", { winners });
+    await Session.findOneAndUpdate({ sessionCode: room }, { status: "COMPLETED" });
+    
+    console.log(`🏁 Game ${room} Completed.`);
+    io.to(room).emit("game:over", { winners });
+    
+  } catch (e) {
+    console.error("❌ Game Over Logic Error:", e);
+  }
 }
 
 function sleep(ms) {

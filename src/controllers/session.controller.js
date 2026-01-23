@@ -21,7 +21,7 @@ export const createSession = async (req, res, next) => {
       title,
       description,
       sessionCode: code,
-      status: "WAITING",
+      status: "WAITING", // ✅ Feature Preserved
     });
 
     res.status(201).json({ success: true, message: "Session created", data: session });
@@ -33,7 +33,7 @@ export const createSession = async (req, res, next) => {
 // 2. GET ALL SESSIONS
 export const getAllSessions = async (req, res, next) => {
   try {
-    // Only show sessions that aren't deleted (if you use soft delete elsewhere)
+    // ✅ Feature Preserved: Only show non-deleted sessions
     const sessions = await Session.find({ status: { $ne: "DELETED" } }).sort({ createdAt: -1 });
     res.json({ success: true, count: sessions.length, data: sessions });
   } catch (error) {
@@ -65,11 +65,13 @@ export const updateSessionStatus = async (req, res, next) => {
     const { status } = req.body;
     const io = req.app.get("io");
 
-    if (!["WAITING", "ACTIVE", "FINISHED"].includes(status)) {
+    // ✅ Feature Preserved: Added COMPLETED to list to match your server loop
+    if (!["WAITING", "ACTIVE", "FINISHED", "COMPLETED"].includes(status)) {
       return res.status(400).json({ success: false, message: "Invalid status" });
     }
 
     const updateData = { status };
+    // ✅ Feature Preserved: Timer sync logic
     if (status === "ACTIVE") updateData.startTime = new Date();
 
     const session = await Session.findByIdAndUpdate(sessionId, updateData, { new: true });
@@ -85,46 +87,49 @@ export const updateSessionStatus = async (req, res, next) => {
   }
 };
 
+/* =========================================================
+   5. 🟢 ROBUST DELETE SESSION (Fixed)
+   Now finds participants first, so it can delete responses
+   even if they are missing the sessionId field.
+========================================================= */
 export const deleteSession = async (req, res, next) => {
   try {
-    const { sessionId } = req.params; // Matches router.delete("/:sessionId")
+    const { sessionId } = req.params;
 
-    // 1. Find the session first to get its CODE
     const session = await Session.findById(sessionId);
-
     if (!session) {
       return res.status(404).json({ success: false, message: "Session not found" });
     }
 
     const { sessionCode, _id } = session;
+    console.log(`🗑️ Deleting Session: ${sessionCode}`);
 
-    console.log(`🗑️ Deleting Session: ${sessionCode} (ID: ${_id})`);
+    // 1. Find all participants to get their IDs
+    const participants = await Participant.find({ 
+      $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
+    }).select("_id");
+    
+    const participantIds = participants.map(p => p._id);
 
-    // 2. Delete EVERYTHING related to this session
-    // We use $or to delete if linked by ID OR linked by Code, covering all bases.
+    // 2. Perform Clean Delete
     await Promise.all([
-      // A. Delete the Session Document
       Session.findByIdAndDelete(_id),
-
-      // B. Delete Participants (Linked by Code or ID)
-      Participant.deleteMany({ 
-        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
-      }),
-
-      // C. Delete Questions (Linked by Code or ID)
-      Question.deleteMany({ 
-        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
-      }),
-
-      // D. Delete Responses (Linked by Code or ID)
+      Participant.deleteMany({ _id: { $in: participantIds } }),
+      Question.deleteMany({ $or: [{ sessionId: sessionCode }, { sessionId: _id }] }),
+      
+      // 🟢 FIX: Delete by Session ID OR by Participant IDs (catches everything)
       Response.deleteMany({ 
-        $or: [{ sessionId: sessionCode }, { sessionId: _id }] 
+        $or: [
+          { sessionId: sessionCode }, 
+          { sessionId: _id },
+          { participantId: { $in: participantIds } } 
+        ] 
       })
     ]);
 
     res.status(200).json({ 
       success: true, 
-      message: "Session and ALL participants, questions, and responses permanently deleted." 
+      message: "Session and ALL related data deleted." 
     });
 
   } catch (error) {
@@ -133,7 +138,10 @@ export const deleteSession = async (req, res, next) => {
   }
 };
 
-// 🟢 NEW: Reset Session (Keep Session/Questions, Delete Users)
+/* =========================================================
+   6. 🟢 ROBUST RESET DATA (Fixed)
+   Deletes Users & Responses, but keeps the Session & Questions.
+========================================================= */
 export const resetSessionData = async (req, res, next) => {
   try {
     const { sessionId } = req.params;
@@ -142,17 +150,27 @@ export const resetSessionData = async (req, res, next) => {
     const session = await Session.findById(sessionId);
     if (!session) return res.status(404).json({ success: false, message: "Session not found" });
 
-    // Delete Participants and Responses
-    await Promise.all([
-      Participant.deleteMany({ sessionId: session.sessionCode }),
-      Response.deleteMany({ sessionId: sessionId })
-    ]);
+    // 1. Find all participants for this session
+    const participants = await Participant.find({ sessionId: session.sessionCode }).select("_id");
+    const participantIds = participants.map(p => p._id);
 
-    // Reset Status
-    session.status = "WAITING";
+    console.log(`♻️ Resetting ${session.sessionCode}: Cleaning ${participantIds.length} users...`);
+
+    // 2. Delete Responses linked to these users (Works for OLD data too)
+    await Response.deleteMany({ participantId: { $in: participantIds } });
+
+    // 3. Delete Responses linked by SessionID (Works for NEW data)
+    await Response.deleteMany({ sessionId: sessionId });
+
+    // 4. Delete the Participants
+    await Participant.deleteMany({ _id: { $in: participantIds } });
+
+    // 5. Reset Session Status
+    session.status = "WAITING"; // ✅ Feature Preserved
+    session.currentQuestionId = null;
+    session.questionEndsAt = null;
     await session.save();
 
-    // Notify clients to reset
     if (io) io.to(session.sessionCode).emit("session:reset");
 
     res.json({ success: true, message: "♻️ Session reset! Ready for new players." });
@@ -160,7 +178,6 @@ export const resetSessionData = async (req, res, next) => {
     next(error);
   }
 };
-
 
 export const deleteSessionPermanently = async (req, res, next) => {
   try {
@@ -174,7 +191,6 @@ export const deleteSessionPermanently = async (req, res, next) => {
 
     req.app.get("io")?.to(code).emit("game:force_stop");
 
-    // Get related IDs
     const questions = await Question.find({ sessionId: code }).select("_id");
     const participants = await Participant.find({ sessionId: code }).select("_id");
 

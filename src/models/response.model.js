@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 const responseSchema = new mongoose.Schema(
   {
+    // 🟢 ADDED: Session ID (Helper for bulk deletes)
+    sessionId: {
+      type: String, 
+      index: true,
+      required: false // Optional, so it doesn't break old data
+    },
     questionId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Question",

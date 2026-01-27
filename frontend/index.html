@@ -3,82 +3,453 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Quiz Portal</title>
+    <title>GDG SKNCOE | Quiz Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap"
+      rel="stylesheet" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
     <style>
-      /* General Page Styling */
-      body {
-        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f3f4f6;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
+      :root {
+        --primary: #2563eb;
+        --secondary: #1e40af;
+        --accent: #fbbf24;
+        --dark: #0f172a;
+        --light: #f8fafc;
+        --text-gray: #94a3b8;
+      }
+
+      * {
         margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
 
-      /* The Card Container */
-      .card {
-        background: white;
-        padding: 3rem;
-        border-radius: 15px;
-        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        width: 350px;
-      }
-
-      h1 {
-        margin-top: 0;
-        color: #1f2937;
-        font-size: 28px;
-        margin-bottom: 10px;
-      }
-
-      p {
-        color: #6b7280;
-        margin-bottom: 30px;
-      }
-
-      /* The Links (styled as buttons) */
-      .nav-btn {
-        display: block;
-        width: 100%;
-        padding: 15px;
-        margin-bottom: 15px;
-        text-decoration: none; /* Remove underline from link */
-        border-radius: 10px;
-        font-size: 18px;
-        font-weight: bold;
+      body {
+        font-family: "Inter", sans-serif;
+        background-color: var(--dark);
         color: white;
+        overflow-x: hidden;
+      }
+
+      /* --- NAVBAR --- */
+      .navbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem 5%;
+        position: fixed;
+        width: 100%;
+        top: 0;
+        background: rgba(15, 23, 42, 0.9);
+        backdrop-filter: blur(10px);
+        z-index: 100;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .logo {
+        font-weight: 800;
+        font-size: 1.5rem;
+        color: white;
+        letter-spacing: -0.5px;
+      }
+
+      .nav-links a {
+        color: var(--text-gray);
+        text-decoration: none;
+        margin-left: 2rem;
+        font-size: 0.95rem;
+        transition: 0.3s;
+      }
+
+      .nav-links a:hover {
+        color: white;
+      }
+      .nav-btn-admin {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 8px 16px;
+        border-radius: 6px;
+      }
+
+      /* --- HERO SECTION --- */
+      .hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        min-height: 100vh;
+        padding: 0 5%;
+        padding-top: 80px; /* Space for navbar */
+        background: radial-gradient(
+          circle at 50% 50%,
+          #1e293b 0%,
+          #0f172a 100%
+        );
+      }
+
+      .hero-content {
+        flex: 1;
+        max-width: 600px;
+      }
+
+      .hero-title {
+        font-size: 4rem;
+        line-height: 1.1;
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+      }
+
+      .text-blue {
+        color: #60a5fa;
+      }
+      .text-green {
+        color: #34d399;
+      }
+      .text-red {
+        color: #f87171;
+      }
+
+      .hero-description {
+        font-size: 1.2rem;
+        color: var(--text-gray);
+        line-height: 1.6;
+        margin-bottom: 2.5rem;
+      }
+
+      .hero-btn {
+        display: inline-block;
+        background: var(--primary);
+        color: white;
+        padding: 16px 32px;
+        border-radius: 50px;
+        font-weight: 600;
+        font-size: 1.1rem;
+        text-decoration: none;
+        box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4);
         transition:
           transform 0.2s,
-          opacity 0.2s;
-        box-sizing: border-box; /* Ensures padding doesn't break width */
+          background 0.2s;
       }
 
-      .btn-user {
-        background: linear-gradient(135deg, #059669, #10b981); /* Green */
-        box-shadow: 0 4px 6px rgba(16, 185, 129, 0.3);
+      .hero-btn:hover {
+        transform: translateY(-3px);
+        background: var(--secondary);
       }
 
-      .btn-admin {
-        background: linear-gradient(135deg, #1e40af, #3b82f6); /* Blue */
-        box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+      /* --- PHONE MOCKUP --- */
+      .hero-right {
+        flex: 1;
+        display: flex;
+        justify-content: center;
+        position: relative;
       }
 
-      .nav-btn:hover {
-        transform: translateY(-2px);
-        opacity: 0.9;
+      .quiz-phone-mockup {
+        width: 300px;
+        height: 600px;
+        background: #000;
+        border-radius: 40px;
+        border: 8px solid #334155;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      }
+
+      .phone-notch {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 120px;
+        height: 25px;
+        background: #000;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
+        z-index: 10;
+      }
+
+      .phone-screen {
+        background: #1f2937;
+        height: 100%;
+        padding: 40px 20px;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .quiz-header {
+        margin-bottom: 20px;
+      }
+      .question-counter {
+        font-size: 12px;
+        color: #9ca3af;
+        text-transform: uppercase;
+      }
+      .quiz-question {
+        font-size: 18px;
+        font-weight: bold;
+        margin-top: 5px;
+      }
+
+      .quiz-option {
+        background: #374151;
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        font-size: 14px;
+        opacity: 0.6;
+        transition: 0.3s;
+      }
+
+      .quiz-option.active {
+        background: var(--primary);
+        opacity: 1;
+        transform: scale(1.02);
+      }
+
+      /* --- TIMELINE (How it works) --- */
+      .process-section {
+        padding: 5rem 5%;
+        background: #0f172a;
+      }
+
+      .section-title {
+        text-align: center;
+        font-size: 2.5rem;
+        margin-bottom: 4rem;
+        font-weight: 800;
+      }
+
+      .timeline {
+        display: flex;
+        justify-content: space-between;
+        max-width: 1000px;
+        margin: 0 auto;
+        position: relative;
+      }
+
+      /* The Line */
+      .timeline::before {
+        content: "";
+        position: absolute;
+        top: 20px;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: #334155;
+        z-index: 0;
+      }
+
+      .timeline-item {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        flex: 1;
+      }
+
+      .circle {
+        width: 44px;
+        height: 44px;
+        background: var(--dark);
+        border: 4px solid var(--primary);
+        border-radius: 50%;
+        margin: 0 auto 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: white;
+        transition: 0.3s;
+      }
+
+      .timeline-item:hover .circle {
+        background: var(--primary);
+        box-shadow: 0 0 20px rgba(37, 99, 235, 0.6);
+      }
+
+      .timeline-content h3 {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+      }
+      .timeline-content p {
+        font-size: 0.9rem;
+        color: var(--text-gray);
+      }
+
+      /* --- FOOTER --- */
+      .footer {
+        border-top: 1px solid #334155;
+        padding: 3rem 5%;
+        background: #020617;
+        text-align: center;
+      }
+      .footer-links a {
+        color: var(--text-gray);
+        margin: 0 10px;
+        text-decoration: none;
+      }
+      .footer-links a:hover {
+        color: white;
+      }
+
+      /* Mobile Responsive */
+      @media (max-width: 768px) {
+        .hero {
+          flex-direction: column;
+          text-align: center;
+          padding-top: 120px;
+        }
+        .hero-right {
+          margin-top: 3rem;
+          display: none; /* Hide phone on small screens if needed */
+        }
+        .timeline {
+          flex-direction: column;
+        }
+        .timeline::before {
+          width: 4px;
+          height: 100%;
+          left: 50%;
+          top: 0;
+          transform: translateX(-50%);
+        }
+        .timeline-item {
+          margin-bottom: 40px;
+        }
+        .hero-title {
+          font-size: 2.5rem;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="card">
-      <h1>Welcome</h1>
-      <p>Please select your portal to continue</p>
+    <header class="navbar">
+      <div class="logo">
+        GDG <span style="color: var(--primary)">SKNCOE</span>
+      </div>
+      <nav class="nav-links">
+        <a href="leaderboard.html" target="_blank">🏆 Live Scores</a>
+        <a href="admin.html" class="nav-btn-admin">Admin Login</a>
+      </nav>
+    </header>
 
-      <a href="user.html" class="nav-btn btn-user"> User Portal </a>
+    <section class="hero">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          <span class="text-blue">Play.</span><br />
+          <span class="text-green">Learn.</span><br />
+          <span class="text-red">Compete.</span>
+        </h1>
+        <p class="hero-description">
+          Join the ultimate tech quiz experience. Test your knowledge, compete
+          with peers in real-time, and win exciting rewards.
+        </p>
+        <a href="user.html" class="hero-btn">🚀 Join Quiz Now</a>
+      </div>
 
-      <a href="admin.html" class="nav-btn btn-admin"> Admin Portal </a>
-    </div>
+      <div class="hero-right">
+        <div class="quiz-phone-mockup">
+          <div class="phone-notch"></div>
+          <div class="phone-screen">
+            <div class="quiz-header">
+              <div class="question-counter">Question 3 of 10</div>
+              <div class="quiz-question">What does JSON stand for?</div>
+            </div>
+
+            <div class="quiz-content" id="mockOptions">
+              <div class="quiz-option">Java Source Object Net</div>
+              <div class="quiz-option">JavaScript Object Notation</div>
+              <div class="quiz-option">Just Some Object Name</div>
+            </div>
+
+            <div
+              style="
+                margin-top: auto;
+                text-align: center;
+                color: #4ade80;
+                font-size: 12px;
+              ">
+              <i class="fas fa-wifi"></i> Live Connected
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="process-section">
+      <h2 class="section-title">How It Works</h2>
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="circle">1</div>
+          <div class="timeline-content">
+            <h3>Join Event</h3>
+            <p>Click "Join Quiz" and enter your name.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="circle">2</div>
+          <div class="timeline-content">
+            <h3>Enter Code</h3>
+            <p>Input the unique session code from the screen.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="circle">3</div>
+          <div class="timeline-content">
+            <h3>Compete</h3>
+            <p>Answer questions fast on your phone.</p>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="circle">4</div>
+          <div class="timeline-content">
+            <h3>Win</h3>
+            <p>Check the live leaderboard for results.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div
+        class="footer-logo"
+        style="margin-bottom: 1rem; font-weight: bold; font-size: 1.2rem">
+        GDG On Campus
+      </div>
+      <p style="color: #64748b; margin-bottom: 1.5rem">
+        Smt. Kashibai Navale College of Engineering, Pune
+      </p>
+      <div class="footer-links">
+        <a href="admin.html">Admin</a>
+        <a href="leaderboard.html">Leaderboard</a>
+        <a href="https://gdg.community.dev" target="_blank">Community</a>
+      </div>
+    </footer>
+
+    <script>
+      // Simple animation for the phone mockup options
+      const options = document.querySelectorAll(".quiz-option");
+      let index = 0;
+
+      function animateMockup() {
+        // Reset all
+        options.forEach((opt) => opt.classList.remove("active"));
+
+        // Highlight current
+        if (options[index]) options[index].classList.add("active");
+
+        // Move to next
+        index++;
+        if (index >= options.length) index = 0;
+      }
+
+      // Run animation every 1.5 seconds
+      setInterval(animateMockup, 1500);
+
+      // Text Scramble Effect for Hero Title (Optional Polish)
+      const words = ["Play.", "Learn.", "Compete."];
+      // You can add logic here if you want text scrambling
+    </script>
   </body>
 </html>

@@ -2,385 +2,638 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GDG Live Quiz</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
       body {
-        font-family: "Segoe UI", sans-serif;
-        background: #111827;
-        color: white;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #fbfbfc 0%, #7fbad1 80%);
+        min-height: 100vh;
         display: flex;
         justify-content: center;
         align-items: center;
-        height: 100vh;
-        margin: 0;
-      }
-      .container {
-        width: 100%;
-        max-width: 420px;
         padding: 20px;
-        text-align: center;
+        background-image:
+          linear-gradient(
+            to right,
+            rgba(8, 75, 162, 0.12) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(8, 75, 162, 0.12) 1px,
+            transparent 1px
+          );
+        background-size: 40px 40px;
+        overflow: hidden; /* Prevent scroll during game */
       }
-      .timer {
-        font-size: 22px;
-        font-weight: bold;
-        color: #60a5fa;
-        text-align: right;
-      }
-      .question {
-        font-size: 24px;
-        margin: 20px 0;
-      }
-      .option {
+
+      .container {
+        max-width: 800px;
         width: 100%;
-        padding: 16px;
-        margin-bottom: 12px;
-        background: #1f2937;
-        border: 2px solid #374151;
-        color: white;
-        border-radius: 10px;
-        font-size: 16px;
-        cursor: pointer;
-        text-align: left;
-        transition: 0.2s;
+        position: relative;
       }
-      .option:disabled {
+
+      .quiz-card {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        border: 4px solid #1f2937;
+        padding: 30px;
+        position: relative;
+        overflow: hidden;
+        min-height: 500px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+      }
+
+      /* --- WAITING SCREEN --- */
+      .waiting-screen {
+        text-align: center;
+        animation: fadeIn 1s ease forwards;
+      }
+      .pulse-text {
+        animation: pulse 1.5s infinite;
+        color: #2563eb;
+        font-weight: bold;
+      }
+      @keyframes pulse {
+        0% {
+          opacity: 0.5;
+        }
+        50% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0.5;
+        }
+      }
+
+      /* --- PLAYER BADGE --- */
+      .player-badge {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        background: #f3f4f6;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        color: #4b5563;
+        border: 1px solid #d1d5db;
+        font-weight: 600;
+        z-index: 10;
+      }
+
+      /* --- RANK BADGE --- */
+      .rank-badge {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        background: #fffbeb;
+        padding: 5px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        color: #d97706;
+        border: 1px solid #fcd34d;
+        font-weight: bold;
+        z-index: 10;
+        display: none; /* Hidden initially */
+      }
+
+      /* --- TIMER --- */
+      .progress-info {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        margin-top: 20px;
+      }
+
+      .timer-circle-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        margin: 0 auto;
+      }
+      .timer-svg {
+        transform: rotate(-90deg);
+      }
+      .timer-circle-bg {
+        fill: none;
+        stroke: #e0e0e0;
+        stroke-width: 6;
+      }
+      .timer-circle-progress {
+        fill: none;
+        stroke: #2563eb;
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-dasharray: 251; /* 2 * PI * 40 */
+        stroke-dashoffset: 0;
+        transition: stroke-dashoffset 1s linear;
+      }
+      .timer-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.8em;
+        font-weight: 700;
+        color: #333;
+      }
+
+      /* --- QUESTION --- */
+      .question-text {
+        font-size: 1.4em;
+        color: #333;
+        margin: 20px 0 30px;
+        font-weight: 600;
+        text-align: center;
+        line-height: 1.4;
+      }
+
+      /* --- OPTIONS (KBC STYLE) --- */
+      .answers-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+      }
+      .answer-btn {
+        padding: 20px;
+        background: white;
+        border: 2px solid #e5e7eb;
+        border-radius: 12px;
+        font-size: 1.1em;
+        cursor: pointer;
+        transition: 0.2s;
+        text-align: left;
+        position: relative;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+      }
+      .answer-btn::before {
+        content: attr(data-option);
+        background: #2563eb;
+        color: white;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 15px;
+        font-size: 0.9em;
+        font-weight: bold;
+        flex-shrink: 0;
+      }
+      .answer-btn:hover {
+        border-color: #2563eb;
+        transform: translateY(-2px);
+      }
+      .answer-btn:disabled {
         opacity: 0.6;
         cursor: not-allowed;
       }
+
+      /* States */
+      .answer-btn.selected {
+        background: #eff6ff;
+        border-color: #2563eb;
+      }
+      .answer-btn.correct {
+        background: #dcfce7;
+        border-color: #16a34a;
+      }
+      .answer-btn.wrong {
+        background: #fee2e2;
+        border-color: #dc2626;
+      }
+
+      /* --- OVERLAYS --- */
       .overlay {
-        position: fixed;
+        position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.95);
+        background: rgba(255, 255, 255, 0.95);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         z-index: 50;
         text-align: center;
+        display: none; /* Hidden by default */
       }
+      .overlay.active {
+        display: flex;
+        animation: fadeIn 0.3s ease;
+      }
+
+      .result-title {
+        font-size: 3em;
+        margin-bottom: 10px;
+        font-weight: 800;
+      }
+      .result-sub {
+        font-size: 1.2em;
+        color: #666;
+      }
+
+      /* --- GAME OVER --- */
+      .game-over-container {
+        text-align: center;
+        width: 100%;
+        height: 100%;
+        overflow-y: auto;
+        padding: 10px;
+      }
+      .trophy {
+        font-size: 4em;
+        animation: bounce 2s infinite;
+      }
+      @keyframes bounce {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      .stats-row {
+        display: flex;
+        gap: 10px;
+        justify-content: center;
+        margin: 20px 0;
+      }
+      .stat-box {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+        flex: 1;
+      }
+      .stat-val {
+        font-size: 1.5em;
+        font-weight: bold;
+        color: #2563eb;
+      }
+      .stat-lbl {
+        font-size: 0.8em;
+        color: #666;
+        text-transform: uppercase;
+      }
+
+      .history-list {
+        text-align: left;
+        margin-top: 15px;
+        max-height: 150px;
+        overflow-y: auto;
+      }
+      .hist-item {
+        font-size: 0.9em;
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+      }
+      .hist-correct {
+        color: #16a34a;
+        font-weight: bold;
+      }
+      .hist-wrong {
+        color: #dc2626;
+        font-weight: bold;
+      }
+
       .hidden {
         display: none !important;
       }
-      .rank-box {
-        background: #374151;
-        padding: 15px 30px;
-        border-radius: 15px;
-        border: 2px solid #fbbf24;
-        margin-top: 20px;
-        animation: popIn 0.5s ease;
-      }
 
-      /* 🟢 Rank Badge Style (Top Left) */
-      #rankBadge {
+      /* Confetti */
+      .confetti {
         position: absolute;
-        top: 20px;
-        left: 20px;
-        background: #374151;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 14px;
-        font-weight: bold;
-        color: #fbbf24;
-        border: 1px solid #4b5563;
-        transition: opacity 0.3s;
+        width: 10px;
+        height: 10px;
+        animation: fall 2s linear forwards;
+      }
+      @keyframes fall {
+        to {
+          transform: translateY(100vh) rotate(360deg);
+          opacity: 0;
+        }
       }
 
-      /* 🟢 Player Info Badge (Top Right) */
-      #playerInfo {
-        position: absolute;
-        top: 20px;
-        right: 20px;
-        background: #1f2937;
-        padding: 5px 12px;
-        border-radius: 20px;
-        font-size: 14px;
-        color: #9ca3af;
-        border: 1px solid #374151;
+      @media (max-width: 600px) {
+        .answers-grid {
+          grid-template-columns: 1fr;
+        }
+        .quiz-card {
+          padding: 20px;
+          min-height: 100vh;
+          border: none;
+          border-radius: 0;
+        }
       }
-
-      @keyframes popIn {
-        from { transform: scale(0.5); opacity: 0; }
-        to { transform: scale(1); opacity: 1; }
-      }
-
-      /* =========================================
-         🟢 NEW STYLES FOR GAME OVER SCREEN
-      ========================================= */
-      
-      /* Winners Box */
-      .winners-box {
-        background: #1f2937;
-        border: 1px solid #4b5563;
-        border-radius: 12px;
-        padding: 15px;
-        margin-bottom: 20px;
-        width: 100%;
-      }
-      .winner-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 8px 12px;
-        margin-bottom: 5px;
-        background: #374151;
-        border-radius: 8px;
-        font-weight: bold;
-        font-size: 14px;
-      }
-      .rank-1 { border-left: 4px solid #fbbf24; color: #fbbf24; } /* Gold */
-      .rank-2 { border-left: 4px solid #94a3b8; color: #94a3b8; } /* Silver */
-      .rank-3 { border-left: 4px solid #b45309; color: #b45309; } /* Bronze */
-      .w-score { color: #fff; font-size: 14px; }
-
-      /* Stats Grid */
-      .stats-grid {
-        display: flex; 
-        gap: 10px; 
-        margin-bottom: 20px; 
-        justify-content: center;
-        width: 100%;
-      }
-      .stat-box {
-        padding: 10px; 
-        border-radius: 10px; 
-        flex: 1;
-        text-align: center;
-      }
-
-      /* History List */
-      .history-container {
-        max-height: 250px;
-        overflow-y: auto;
-        margin-top: 15px;
-        width: 100%;
-        text-align: left;
-        padding-right: 5px;
-      }
-      .history-item {
-        background: #374151;
-        padding: 12px;
-        margin-bottom: 8px;
-        border-radius: 8px;
-        border-left: 5px solid #6b7280;
-        font-size: 13px;
-      }
-      .status-CORRECT { border-left-color: #10b981; }
-      .status-WRONG { border-left-color: #ef4444; }
-      .status-TIMEOUT { border-left-color: #f59e0b; }
-      
-      .h-badge {
-        display: inline-block;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: bold;
-        color: white;
-        margin-bottom: 4px;
-      }
-      .bg-CORRECT { background: #10b981; }
-      .bg-WRONG { background: #ef4444; }
-      .bg-TIMEOUT { background: #f59e0b; }
-
     </style>
   </head>
-
   <body>
-    <div id="rankBadge" class="hidden">Rank: --</div>
-    <div id="playerInfo">Loading...</div>
+    <div class="container">
+      <div class="quiz-card">
+        <div id="playerInfo" class="player-badge">Player</div>
+        <div id="rankBadge" class="rank-badge">Rank: --</div>
 
-    <div class="container" id="gameArea">
-      <div class="timer" id="timer">--</div>
-      <div class="question" id="questionText">Waiting for host…</div>
-      <div id="options"></div>
-    </div>
-
-    <div class="overlay hidden" id="resultOverlay">
-      <h1 id="resultTitle" style="font-size: 40px; margin: 0"></h1>
-      <p id="correctAnswer" style="color: #9ca3af; margin-top: 10px"></p>
-
-      <div id="rankContainer" class="hidden rank-box">
-        <div style="color: #fbbf24; font-size: 14px; letter-spacing: 1px">
-          CURRENT RANK
-        </div>
-        <div
-          id="resultRank"
-          style="color: white; font-size: 42px; font-weight: bold">
-          #--
-        </div>
-      </div>
-
-      <p style="opacity: 0.6; margin-top: 30px; font-size: 14px">
-        Next question in <span id="coolTimer">5</span>...
-      </p>
-    </div>
-
-    <div
-      id="gameOverCard"
-      class="hidden"
-      style="
-        position: fixed;
-        inset: 0;
-        background: #111827;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        z-index: 100;
-        padding: 20px;
-        overflow-y: auto; 
-      ">
-      
-      <div style="width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center;">
-        
-        <h1 style="color: #fbbf24; font-size: 32px; margin-bottom: 15px; margin-top: 0;">
-          🏆 Quiz Completed!
-        </h1>
-
-        <div id="winnersContainer" class="winners-box hidden">
-          <h3 style="margin: 0 0 10px 0; color: white; text-align: center; font-size: 16px;">🎉 Top Winners</h3>
-          <div id="winnersList"></div>
-        </div>
-
-        <div style="background: #1f2937; padding: 20px; border-radius: 15px; width: 100%; box-sizing: border-box; border: 1px solid #374151;">
-          
-          <div style="text-align: center; margin-bottom: 20px;">
-            <p style="color: #9ca3af; margin: 0; font-size: 12px;">YOUR FINAL RANK</p>
-            <h2 id="finalRankDisplay" style="font-size: 42px; margin: 5px 0; color: white">#--</h2>
-            <p id="finalScoreDisplay" style="color: #34d399; font-weight: bold; font-size: 18px">0 pts</p>
+        <div id="waitingScreen" class="waiting-screen">
+          <h1 style="font-size: 3em; margin-bottom: 20px">🎯</h1>
+          <h2 style="color: #1f2937; margin-bottom: 10px">
+            Welcome to the Quiz!
+          </h2>
+          <p class="pulse-text">Waiting for host to start...</p>
+          <div style="margin-top: 30px; font-size: 0.9em; color: #666">
+            Get ready! The questions will appear here automatically.
           </div>
+        </div>
 
-          <div class="stats-grid">
-            <div class="stat-box" style="background: #059669;">
-              <div style="font-size: 10px; opacity: 0.9;">CORRECT</div>
-              <div id="statCorrect" style="font-size: 20px; font-weight: bold;">--</div>
+        <div id="quizScreen" class="hidden">
+          <div class="progress-info">
+            <div style="font-weight: bold; color: #666" id="qCounter">Q1</div>
+            <div class="timer-circle-container">
+              <svg class="timer-svg" width="80" height="80">
+                <circle class="timer-circle-bg" cx="40" cy="40" r="36"></circle>
+                <circle
+                  class="timer-circle-progress"
+                  id="timerCircle"
+                  cx="40"
+                  cy="40"
+                  r="36"></circle>
+              </svg>
+              <div class="timer-text" id="timerText">10</div>
             </div>
-            <div class="stat-box" style="background: #dc2626;">
-              <div style="font-size: 10px; opacity: 0.9;">WRONG</div>
-              <div id="statWrong" style="font-size: 20px; font-weight: bold;">--</div>
-            </div>
-            <div class="stat-box" style="background: #d97706;">
-              <div style="font-size: 10px; opacity: 0.9;">TIMEOUT</div>
-              <div id="statTimeout" style="font-size: 20px; font-weight: bold;">--</div>
+            <div style="font-weight: bold; color: #2563eb" id="scoreDisplay">
+              0 pts
             </div>
           </div>
 
-          <div style="border-top: 1px solid #4b5563; padding-top: 15px;">
-            <h3 style="margin: 0; color: white; font-size: 16px;">Review Answers</h3>
-            <div id="historyList" class="history-container">
-              <div style="text-align:center; color:#9ca3af;">Loading review...</div>
-            </div>
-          </div>
-
+          <div class="question-text" id="questionText">Loading...</div>
+          <div class="answers-grid" id="optionsGrid"></div>
         </div>
 
-        <button
-          onclick="location.href = 'user.html'"
-          style="
-            margin-top: 20px;
-            padding: 12px 30px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 16px;
-            width: 100%;
-          ">
-          Exit to Home
-        </button>
+        <div id="resultOverlay" class="overlay">
+          <div class="result-title" id="resTitle"></div>
+          <div class="result-sub" id="resSub"></div>
+          <div style="margin-top: 30px; font-size: 0.9em; color: #999">
+            Next question coming soon...
+          </div>
+        </div>
+
+        <div id="gameOverScreen" class="overlay">
+          <div class="game-over-container">
+            <div class="trophy">🏆</div>
+            <h2 style="color: #1f2937; margin-bottom: 5px">Quiz Complete!</h2>
+
+            <div style="margin: 20px 0">
+              <div style="font-size: 0.9em; color: #666">YOUR FINAL RANK</div>
+              <div
+                style="font-size: 3em; font-weight: 800; color: #2563eb"
+                id="finalRank">
+                #--
+              </div>
+            </div>
+
+            <div class="stats-row">
+              <div class="stat-box">
+                <div class="stat-val" style="color: #16a34a" id="statCorrect">
+                  0
+                </div>
+                <div class="stat-lbl">Correct</div>
+              </div>
+              <div class="stat-box">
+                <div class="stat-val" style="color: #dc2626" id="statWrong">
+                  0
+                </div>
+                <div class="stat-lbl">Wrong</div>
+              </div>
+            </div>
+
+            <div
+              style="text-align: left; font-weight: bold; margin-bottom: 10px">
+              Review:
+            </div>
+            <div class="history-list" id="historyList">
+              <div>Loading history...</div>
+            </div>
+
+            <button
+              onclick="location.href = 'user.html'"
+              style="
+                margin-top: 20px;
+                padding: 12px 30px;
+                background: #1f2937;
+                color: white;
+                border: none;
+                border-radius: 30px;
+                font-weight: bold;
+                cursor: pointer;
+                width: 100%;
+              ">
+              Exit Quiz
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
     <script>
-      let hasSubmitted = false;
-      let currentQuestionId = null;
-      let myCurrentRank = "--";
-      let myCurrentScore = 0;
-
+      // 🟢 AUTH & CONFIG
+      const API_URL = "https://gdg-quiz-app.onrender.com";
       const SESSION_CODE =
-        localStorage.getItem("SESSION_CODE") ||
-        sessionStorage.getItem("SESSION_CODE");
+        sessionStorage.getItem("SESSION_CODE") ||
+        localStorage.getItem("SESSION_CODE");
       const PARTICIPANT_ID =
-        localStorage.getItem("PARTICIPANT_ID") ||
-        sessionStorage.getItem("PARTICIPANT_ID");
+        sessionStorage.getItem("PARTICIPANT_ID") ||
+        localStorage.getItem("PARTICIPANT_ID");
       const PLAYER_NAME =
-        localStorage.getItem("PLAYER_NAME") ||
-        sessionStorage.getItem("PLAYER_NAME");
-      const PLAYER_CODE =
-        localStorage.getItem("PLAYER_CODE") ||
-        sessionStorage.getItem("PLAYER_CODE");
-
-      console.log("Login Check:", { SESSION_CODE, PARTICIPANT_ID });
+        sessionStorage.getItem("PLAYER_NAME") ||
+        localStorage.getItem("PLAYER_NAME");
 
       if (!SESSION_CODE || !PARTICIPANT_ID) {
-        alert("Session expired. Please login again.");
-        location.href = "user.html";
+        alert("Session lost. Please login.");
+        window.location.href = "user.html";
       }
 
-      if (PLAYER_NAME) {
-        document.getElementById("playerInfo").innerText = PLAYER_CODE
-          ? `${PLAYER_NAME} (${PLAYER_CODE})`
-          : PLAYER_NAME;
-      }
+      if (PLAYER_NAME)
+        document.getElementById("playerInfo").innerText = PLAYER_NAME;
 
-      // ✅ RENDER URL
-      const API_URL = "https://gdg-quiz-app.onrender.com";
+      // 🟢 SOCKET SETUP
+      const socket = io(API_URL, { transports: ["websocket"] });
 
-      const socket = io(API_URL, {
-        transports: ["websocket"],
-      });
+      // State
+      let currentQId = null;
+      let timerInterval = null;
+      let hasSubmitted = false;
+      let myScore = 0;
+      let myRank = "--";
 
-      let timeLeft = 0,
-        timerInterval = null,
-        myAnswer = null;
+      // --- SOCKET EVENTS ---
 
       socket.on("connect", () => {
-        console.log("Connected to Socket");
+        console.log("Connected");
         socket.emit("join:session", SESSION_CODE);
         socket.emit("sync:state", SESSION_CODE);
       });
 
+      // 1. NEW QUESTION
       socket.on("game:question", (data) => {
-        currentQuestionId = data.question._id;
+        // Switch Views
+        document.getElementById("waitingScreen").classList.add("hidden");
+        document.getElementById("resultOverlay").classList.remove("active");
+        document.getElementById("quizScreen").classList.remove("hidden");
+        document.getElementById("rankBadge").style.display = "block"; // Show rank once game starts
 
-        document.getElementById("rankBadge").classList.add("hidden");
-        document.getElementById("resultOverlay").classList.add("hidden");
-        document.getElementById("rankContainer").classList.add("hidden");
-        // Hide Game Over if previously shown
-        document.getElementById("gameOverCard").classList.add("hidden");
-
-        clearInterval(timerInterval);
-        myAnswer = null;
+        // Reset State
+        currentQId = data.question._id;
         hasSubmitted = false;
-        timeLeft = data.time;
+        clearInterval(timerInterval);
 
-        document.getElementById("questionText").innerText = data.qNum
-          ? `Q${data.qNum}: ${data.question.questionText}`
-          : data.question.questionText;
+        // Update UI
+        document.getElementById("qCounter").innerText = data.qNum
+          ? `Q${data.qNum}`
+          : "Q";
+        document.getElementById("questionText").innerText =
+          data.question.questionText;
 
-        const optionsDiv = document.getElementById("options");
-        optionsDiv.innerHTML = "";
+        // Render Options
+        const grid = document.getElementById("optionsGrid");
+        grid.innerHTML = "";
+        const letters = ["A", "B", "C", "D"];
 
-        data.question.options.forEach((opt) => {
+        data.question.options.forEach((opt, idx) => {
           const btn = document.createElement("button");
-          btn.className = "option";
+          btn.className = "answer-btn";
+          btn.setAttribute("data-option", letters[idx]);
           btn.innerText = opt.text;
           btn.onclick = () => submitAnswer(opt.text, btn);
-          optionsDiv.appendChild(btn);
+          grid.appendChild(btn);
         });
-        startTimer();
+
+        // Start Timer
+        startVisualTimer(data.time);
       });
+
+      // 2. SHOW RESULT (Interstitial)
+      socket.on("game:result", (data) => {
+        const overlay = document.getElementById("resultOverlay");
+        const title = document.getElementById("resTitle");
+        const sub = document.getElementById("resSub");
+
+        overlay.classList.add("active");
+
+        const selectedBtn = document.querySelector(".answer-btn.selected");
+        const myAnswer = selectedBtn ? selectedBtn.innerText : null;
+
+        if (myAnswer === data.correctAnswer) {
+          title.innerText = "🎉 Correct!";
+          title.style.color = "#16a34a";
+          sub.innerText = "+10 Points";
+          confettiEffect();
+        } else if (myAnswer) {
+          title.innerText = "❌ Wrong";
+          title.style.color = "#dc2626";
+          sub.innerText = `Correct: ${data.correctAnswer}`;
+        } else {
+          title.innerText = "⏰ Time Up";
+          title.style.color = "#d97706";
+          sub.innerText = `Correct: ${data.correctAnswer}`;
+        }
+      });
+
+      // 3. UPDATE RANKS
+      socket.on("game:ranks", (ranks) => {
+        const me = ranks.find((p) => p.id === PARTICIPANT_ID);
+        if (me) {
+          myRank = me.rank;
+          myScore = me.score;
+          document.getElementById("rankBadge").innerText = `Rank: #${myRank}`;
+          document.getElementById("scoreDisplay").innerText = `${myScore} pts`;
+        }
+      });
+
+      // 4. GAME OVER
+      socket.on("game:over", async () => {
+        document.getElementById("quizScreen").classList.add("hidden");
+        document.getElementById("resultOverlay").classList.remove("active");
+        document.getElementById("gameOverScreen").classList.add("active"); // Use overlay style
+
+        document.getElementById("finalRank").innerText = `#${myRank}`;
+        confettiEffect();
+
+        // Fetch Stats
+        try {
+          const res = await fetch(
+            `${API_URL}/api/participants/stats/${PARTICIPANT_ID}`,
+          );
+          const stats = await res.json();
+          if (stats.success) {
+            document.getElementById("statCorrect").innerText =
+              stats.data.correct;
+            document.getElementById("statWrong").innerText = stats.data.wrong;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+
+        // Fetch History
+        try {
+          const res = await fetch(
+            `${API_URL}/api/participants/history/${PARTICIPANT_ID}`,
+          );
+          const hist = await res.json();
+          const list = document.getElementById("historyList");
+          list.innerHTML = "";
+
+          hist.data.forEach((h, i) => {
+            const div = document.createElement("div");
+            div.className = "hist-item";
+            const isCorrect = h.status === "CORRECT";
+            div.innerHTML = `
+                    <span>Q${i + 1}</span>
+                    <span class="${isCorrect ? "hist-correct" : "hist-wrong"}">
+                        ${isCorrect ? "Correct" : "Wrong"}
+                    </span>
+                `;
+            list.appendChild(div);
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      });
+
+      // --- ACTIONS ---
 
       async function submitAnswer(answer, btn) {
         if (hasSubmitted) return;
         hasSubmitted = true;
+
+        // Visual Feedback
         document
-          .querySelectorAll(".option")
+          .querySelectorAll(".answer-btn")
           .forEach((b) => (b.disabled = true));
-        btn.style.background = "#2563eb";
-        myAnswer = answer;
+        btn.classList.add("selected");
+        btn.style.borderColor = "#2563eb";
+        btn.style.backgroundColor = "#eff6ff";
+
+        // Logic
+        const timeLeftVal = parseInt(
+          document.getElementById("timerText").innerText,
+        );
 
         try {
           await fetch(`${API_URL}/api/participants/submit`, {
@@ -388,136 +641,62 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               participantId: PARTICIPANT_ID,
-              questionId: currentQuestionId,
+              questionId: currentQId,
               selectedOption: answer,
-              timeLeft,
+              timeLeft: timeLeftVal,
             }),
           });
-        } catch (err) {
-          console.error("Submit failed:", err);
+        } catch (e) {
+          console.error("Submit Error", e);
         }
       }
 
-      socket.on("game:result", (data) => {
-        document.getElementById("resultOverlay").classList.remove("hidden");
-        document.getElementById("correctAnswer").innerText =
-          `Answer: ${data.correctAnswer}`;
+      // --- VISUALS ---
 
-        const title = document.getElementById("resultTitle");
-        const myAnsNorm = myAnswer ? String(myAnswer).trim().toLowerCase() : "";
-        const correctNorm = String(data.correctAnswer).trim().toLowerCase();
+      function startVisualTimer(seconds) {
+        const circle = document.getElementById("timerCircle");
+        const text = document.getElementById("timerText");
+        const circumference = 251; // 2 * PI * 40
 
-        if (myAnsNorm === correctNorm) {
-          title.innerText = "🎉 Correct!";
-          title.style.color = "#4ade80";
-        } else if (myAnswer) {
-          title.innerText = "❌ Wrong";
-          title.style.color = "#ef4444";
-        } else {
-          title.innerText = "⏰ Time Up";
-          title.style.color = "#fbbf24";
-        }
+        // Reset
+        circle.style.transition = "none";
+        circle.style.strokeDashoffset = 0;
+        circle.style.stroke = "#2563eb";
 
-        document.getElementById("rankBadge").classList.remove("hidden");
+        let timeLeft = seconds;
+        text.innerText = timeLeft;
 
-        let cool = 5;
-        const coolEl = document.getElementById("coolTimer");
-        const interval = setInterval(() => {
-          cool--;
-          coolEl.innerText = cool;
-          if (cool <= 0) clearInterval(interval);
-        }, 1000);
-      });
+        // Force reflow
+        void circle.offsetWidth;
+        circle.style.transition = "stroke-dashoffset 1s linear";
 
-      socket.on("game:ranks", (rankList) => {
-        const myData = rankList.find(
-          (p) => String(p.id) === String(PARTICIPANT_ID),
-        );
-
-        if (myData) {
-          myCurrentRank = myData.rank;
-          myCurrentScore = myData.score;
-
-          document.getElementById("rankBadge").innerText =
-            `Rank: #${myData.rank} (${myData.score} pts)`;
-
-          document.getElementById("resultRank").innerText = `#${myData.rank}`;
-          document.getElementById("rankContainer").classList.remove("hidden");
-        }
-      });
-
-      // 🟢 GAME OVER LISTENER
-      socket.on("game:over", async (data) => {
-        document.getElementById("gameArea").style.display = "none";
-        document.getElementById("resultOverlay").style.display = "none";
-        document.getElementById("rankBadge").style.display = "none";
-
-        // 1. Render Top 3 Winners
-        if (data && data.winners && data.winners.length > 0) {
-          const list = document.getElementById("winnersList");
-          list.innerHTML = "";
-          data.winners.forEach((p, index) => {
-            const div = document.createElement("div");
-            div.className = `winner-row rank-${index + 1}`;
-            let medal = "🥇";
-            if(index === 1) medal = "🥈";
-            if(index === 2) medal = "🥉";
-            div.innerHTML = `<span>${medal} ${p.name}</span><span class="w-score">${p.totalScore} pts</span>`;
-            list.appendChild(div);
-          });
-          document.getElementById("winnersContainer").classList.remove("hidden");
-        }
-
-        // 2. Local Rank
-        document.getElementById("finalRankDisplay").innerText = `#${myCurrentRank}`;
-        document.getElementById("finalScoreDisplay").innerText = `${myCurrentScore} pts`;
-
-        // 3. Show Card
-        document.getElementById("gameOverCard").classList.remove("hidden");
-
-        // 4. Fetch Stats
-        try {
-          const res = await fetch(`${API_URL}/api/participants/stats/${PARTICIPANT_ID}`);
-          const stats = await res.json();
-          if (stats.success) {
-            document.getElementById("statCorrect").innerText = stats.data.correct;
-            document.getElementById("statWrong").innerText = stats.data.wrong;
-            document.getElementById("statTimeout").innerText = stats.data.timeout;
-          }
-        } catch (e) { console.error("Stats error", e); }
-
-        // 5. Fetch History
-        const historyList = document.getElementById("historyList");
-        try {
-          const res = await fetch(`${API_URL}/api/participants/history/${PARTICIPANT_ID}`);
-          const hist = await res.json();
-          if (hist.success) {
-            historyList.innerHTML = "";
-            hist.data.forEach((item, index) => {
-              const div = document.createElement("div");
-              div.className = `history-item status-${item.status}`;
-              div.innerHTML = `
-                <div class="h-badge bg-${item.status}">${item.status}</div>
-                <div style="font-weight:bold; margin-bottom:5px;">Q${index + 1}: ${item.questionText}</div>
-                <div style="color: #9ca3af; font-size: 13px;">
-                  Your Answer: <span style="color:white;">${item.userSelected}</span>
-                </div>
-                ${item.status !== "CORRECT" ? 
-                  `<div style="color: #10b981; font-size: 13px;">Correct: <b>${item.correctAnswer}</b></div>` : ""}
-              `;
-              historyList.appendChild(div);
-            });
-          }
-        } catch (e) { console.error("History error", e); }
-      });
-
-      function startTimer() {
-        document.getElementById("timer").innerText = `${timeLeft}s`;
         timerInterval = setInterval(() => {
           timeLeft--;
-          document.getElementById("timer").innerText = `${timeLeft}s`;
+          text.innerText = timeLeft;
+
+          // Calculate Offset
+          const offset = circumference - (timeLeft / seconds) * circumference;
+          circle.style.strokeDashoffset = -offset; // Negative to rotate correctly
+
+          // Colors
+          if (timeLeft <= 5) circle.style.stroke = "#f59e0b"; // Warning
+          if (timeLeft <= 3) circle.style.stroke = "#dc2626"; // Danger
+
           if (timeLeft <= 0) clearInterval(timerInterval);
         }, 1000);
+      }
+
+      function confettiEffect() {
+        const colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#f9ca24", "#6c5ce7"];
+        for (let i = 0; i < 30; i++) {
+          const c = document.createElement("div");
+          c.className = "confetti";
+          c.style.left = Math.random() * 100 + "%";
+          c.style.background =
+            colors[Math.floor(Math.random() * colors.length)];
+          document.body.appendChild(c);
+          setTimeout(() => c.remove(), 2000);
+        }
       }
     </script>
   </body>

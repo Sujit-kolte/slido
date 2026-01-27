@@ -2,207 +2,376 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Live Leaderboard</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <style>
-      body {
-        font-family: "Segoe UI", sans-serif;
-        background: #111827;
-        color: white;
+      * {
         margin: 0;
-        padding: 20px;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Segoe UI", Tahoma, sans-serif;
+      }
+
+      body {
+        min-height: 100vh;
+        background: linear-gradient(135deg, #f6f9ff, #e9f0ff);
         display: flex;
         justify-content: center;
+        align-items: center;
+        background-image:
+          linear-gradient(
+            to right,
+            rgba(8, 75, 162, 0.12) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(8, 75, 162, 0.12) 1px,
+            transparent 1px
+          );
+        background-size: 40px 40px;
+        transition:
+          background-color 250ms ease,
+          color 250ms ease;
       }
-      .container {
-        width: 100%;
-        max-width: 800px;
+
+      /* ---------- MAIN CARD ---------- */
+      .leaderboard {
+        width: 800px; /* Wide for Projector */
+        background: #ffffff;
+        border: 3px solid #1f2937;
+        border-radius: 18px;
+        padding: 26px;
+        box-shadow:
+          0 10px 0 rgba(0, 0, 0, 0.15),
+          0 25px 50px rgba(0, 0, 0, 0.25);
+        position: relative;
+        overflow: hidden;
+        min-height: 600px;
+        display: flex;
+        flex-direction: column;
       }
+
+      /* ---------- HEADER ---------- */
       .header {
         text-align: center;
-        margin-bottom: 30px;
+        margin-bottom: 20px;
       }
-      h1 {
-        margin: 0;
-        background: linear-gradient(to right, #fbbf24, #d97706);
-        -webkit-background-clip: text;
-        color: transparent;
-        font-size: 42px;
+
+      .trophy {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 10px;
       }
-      p {
-        color: #9ca3af;
-        margin-top: 5px;
-        font-size: 18px;
+      .trophy span {
+        font-size: 56px;
+        animation: trophyZoom 2s ease-in-out infinite;
       }
+      @keyframes trophyZoom {
+        0%,
+        100% {
+          transform: scale(1);
+        }
+        50% {
+          transform: scale(1.18);
+        }
+      }
+
+      h2 {
+        text-align: center;
+        color: #2563eb;
+        margin-bottom: 5px;
+        font-size: 28px;
+      }
+      .session-badge {
+        display: inline-block;
+        background: #eff6ff;
+        color: #64748b;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 20px;
+        border: 1px solid #e2e8f0;
+      }
+
+      /* ---------- LIST ---------- */
+      .list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1; /* Fills remaining height */
+      }
+
       .card {
-        background: #1f2937;
-        border-radius: 14px;
-        overflow: hidden;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-      }
-      .row {
         display: flex;
         align-items: center;
-        padding: 18px 24px;
-        border-bottom: 1px solid #374151;
-        transition: all 0.3s ease;
+        justify-content: space-between;
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 12px 20px;
+        opacity: 0;
+        border: 1px solid #e2e8f0;
+        animation: slideUp 0.6s ease forwards;
+        transition: transform 0.2s;
       }
-      .row:last-child {
-        border-bottom: none;
+
+      .card:hover {
+        transform: scale(1.01);
+        border-color: #cbd5e1;
+      }
+
+      /* Top 3 Colors */
+      .card:nth-child(1) {
+        background: #fffbeb;
+        border-color: #fcd34d;
+      } /* Gold */
+      .card:nth-child(2) {
+        background: #f8fafc;
+        border-color: #94a3b8;
+      } /* Silver */
+      .card:nth-child(3) {
+        background: #fff7ed;
+        border-color: #fdba74;
+      } /* Bronze */
+
+      @keyframes slideUp {
+        from {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      /* ---------- ROW CONTENT ---------- */
+      .left {
+        display: flex;
+        align-items: center;
+        gap: 15px;
       }
 
       .rank {
-        width: 60px;
-        font-weight: bold;
-        font-size: 24px;
-        text-align: center;
-      }
-      .rank-1 {
-        color: #fbbf24;
-        text-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
-      }
-      .rank-2 {
-        color: #94a3b8;
-      }
-      .rank-3 {
-        color: #b45309;
+        font-weight: 800;
+        color: #334155;
+        width: 30px;
+        font-size: 18px;
       }
 
-      .name {
-        flex-grow: 1;
-        font-size: 20px;
-        font-weight: 500;
+      .avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        background-size: cover;
+        background-position: center;
+        border: 2px solid #1e293b;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
       }
-      .code {
-        font-size: 14px;
-        color: #6b7280;
-        margin-left: 10px;
+
+      .name-group {
+        display: flex;
+        flex-direction: column;
+      }
+      .name {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e293b;
+      }
+      .unique-code {
+        font-size: 12px;
+        color: #64748b;
+        font-weight: 500;
       }
 
       .score {
-        color: #4ade80;
-        font-weight: bold;
-        font-size: 22px;
-        min-width: 80px;
-        text-align: right;
+        font-size: 20px;
+        font-weight: 800;
+        color: #16a34a;
+        background: #dcfce7;
+        padding: 5px 12px;
+        border-radius: 8px;
       }
 
-      .loading {
+      /* ---------- FOOTER ---------- */
+      .footer {
+        margin-top: 22px;
         text-align: center;
-        padding: 40px;
-        color: #6b7280;
+        font-size: 14px;
+        font-weight: 600;
+        color: #64748b;
+      }
+
+      /* ---------- STATES ---------- */
+      .loading-state {
+        text-align: center;
+        padding: 50px;
+        color: #94a3b8;
         font-size: 18px;
       }
-      .hint {
-        text-align: center;
-        margin-top: 20px;
-        color: #4b5563;
-        font-size: 14px;
+
+      /* ---------- CONFETTI ---------- */
+      .confetti {
+        position: absolute;
+        top: -10px;
+        width: 8px;
+        height: 14px;
+        opacity: 0.9;
+        animation: fall 3s ease-out forwards;
+        z-index: 5;
+      }
+
+      @keyframes fall {
+        0% {
+          transform: translateY(0) rotate(0deg);
+          opacity: 1;
+        }
+        100% {
+          transform: translateY(650px) rotate(360deg);
+          opacity: 0;
+        }
       }
     </style>
   </head>
 
   <body>
-    <div class="container">
+    <div class="leaderboard" id="board">
       <div class="header">
-        <h1>🏆 Live Standings</h1>
-        <p id="sessionBadge">Waiting for Session...</p>
+        <div class="trophy"><span>🏆</span></div>
+        <h2>Live Standings</h2>
+        <div class="session-badge" id="sessionBadge">Loading...</div>
       </div>
 
-      <div class="card" id="board">
-        <div class="loading">Connecting to server...</div>
+      <div class="list" id="list">
+        <div class="loading-state">Connecting to Live Server...</div>
       </div>
 
-      <div class="hint">Press <b>F11</b> for Fullscreen Mode</div>
+      <div class="footer">
+        Press <b>F11</b> for Fullscreen • Updates Automatically
+      </div>
     </div>
 
     <script>
       /* =====================
-   1. CONFIGURATION
-===================== */
-      const API_URL = "https://gdg-quiz-app.onrender.com/api";
-      const SOCKET_URL = "https://gdg-quiz-app.onrender.com";
+       1. CONFIGURATION
+    ===================== */
+      const API_URL = "https://slido-9mg1.onrender.com/api";
+      const SOCKET_URL = "https://slido-9mg1.onrender.com";
 
-      // Get Session from Storage (Admin sets this before opening window)
-      const SESSION_CODE = sessionStorage.getItem("SESSION_CODE");
+      // Get Session Code (URL Param > Storage > Prompt)
+      const urlParams = new URLSearchParams(window.location.search);
+      let SESSION_CODE =
+        urlParams.get("code") || sessionStorage.getItem("SESSION_CODE");
 
       if (!SESSION_CODE) {
-        document.body.innerHTML =
-          "<h2 style='text-align:center;color:white;margin-top:50px;'>No Active Session. Please launch from Admin Dashboard.</h2>";
-      } else {
+        SESSION_CODE = prompt("Enter Session Code (e.g., GDG1):");
+        if (SESSION_CODE) sessionStorage.setItem("SESSION_CODE", SESSION_CODE);
+      }
+
+      if (SESSION_CODE) {
         document.getElementById("sessionBadge").innerText =
-          `Session Code: ${SESSION_CODE}`;
-        initBoard();
+          `SESSION: ${SESSION_CODE}`;
+      } else {
+        document.getElementById("sessionBadge").innerText = "No Session Active";
       }
 
-      function initBoard() {
-        const socket = io(SOCKET_URL, { transports: ["websocket"] });
+      /* =====================
+       2. SOCKET LOGIC
+    ===================== */
+      const socket = io(SOCKET_URL, { transports: ["websocket"] });
 
-        // Initial Load
-        fetchLeaderboard();
-
-        socket.on("connect", () => {
+      socket.on("connect", () => {
+        console.log("🟢 Connected to Live Server");
+        if (SESSION_CODE) {
           socket.emit("join:session", SESSION_CODE);
-        });
-
-        // Listen for LIVE score updates
-        socket.on("leaderboard:update", () => {
-          console.log("⚡ New scores received!");
           fetchLeaderboard();
-        });
-      }
+        }
+      });
 
+      // Listen for LIVE score updates
+      socket.on("leaderboard:update", () => {
+        console.log("⚡ New scores received!");
+        fetchLeaderboard();
+        launchConfetti(); // Celebration on update!
+      });
+
+      /* =====================
+       3. RENDER LOGIC
+    ===================== */
       async function fetchLeaderboard() {
+        if (!SESSION_CODE) return;
+
         try {
           const res = await fetch(
             `${API_URL}/participants/leaderboard/${SESSION_CODE}`,
           );
-          const data = await res.json();
-          const board = document.getElementById("board");
+          const json = await res.json();
+          const list = document.getElementById("list");
 
-          if (!data.data || data.data.length === 0) {
-            board.innerHTML =
-              '<div class="loading">Waiting for players to join...</div>';
+          if (!json.data || json.data.length === 0) {
+            list.innerHTML =
+              '<div class="loading-state">Waiting for players to join...<br> <small>Ask them to join at the link!</small></div>';
             return;
           }
 
-          let html = "";
-          data.data.forEach((p, index) => {
-            // Icons for Top 3
-            let icon = `#${index + 1}`;
-            let colorClass = "";
+          list.innerHTML = ""; // Clear existing
 
-            if (index === 0) {
-              icon = "🥇";
-              colorClass = "rank-1";
-            }
-            if (index === 1) {
-              icon = "🥈";
-              colorClass = "rank-2";
-            }
-            if (index === 2) {
-              icon = "🥉";
-              colorClass = "rank-3";
-            }
+          json.data.forEach((user, index) => {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.style.animationDelay = `${index * 0.1}s`; // Staggered animation
 
-            html += `
-        <div class="row">
-          <div class="rank ${colorClass}">${icon}</div>
-          <div class="name">
-            ${p.name} 
-            <span class="code">(${p.uniqueCode || "---"})</span>
-          </div>
-          <div class="score">${p.totalScore} pts</div>
-        </div>
-      `;
+            // Generate Avatar (Deterministic based on name length)
+            const avatarId = (user.name.length % 70) + 1;
+            const avatarUrl = `https://i.pravatar.cc/100?img=${avatarId}`;
+
+            card.innerHTML = `
+                    <div class="left">
+                        <div class="rank">#${index + 1}</div>
+                        <div class="avatar" style="background-image:url('${avatarUrl}')"></div>
+                        <div class="name-group">
+                            <span class="name">${user.name}</span>
+                            <span class="unique-code">${user.uniqueCode || ""}</span>
+                        </div>
+                    </div>
+                    <div class="score">${user.totalScore} pts</div>
+                `;
+
+            list.appendChild(card);
           });
-
-          board.innerHTML = html;
         } catch (e) {
           console.error("Leaderboard error:", e);
         }
       }
+
+      /* =====================
+       4. VISUAL EFFECTS
+    ===================== */
+      function launchConfetti() {
+        const colors = ["#ff4d4d", "#4d79ff", "#ffd24d", "#4dff88", "#c44dff"];
+        const board = document.getElementById("board");
+
+        // Limit confetti to prevent lag
+        if (document.querySelectorAll(".confetti").length > 50) return;
+
+        for (let i = 0; i < 20; i++) {
+          const c = document.createElement("div");
+          c.className = "confetti";
+          c.style.left = Math.random() * 100 + "%";
+          c.style.backgroundColor =
+            colors[Math.floor(Math.random() * colors.length)];
+          c.style.animationDelay = Math.random() * 0.5 + "s";
+          board.appendChild(c);
+
+          setTimeout(() => c.remove(), 3000);
+        }
+      }
+
+      // Auto-refresh fallback (just in case socket misses a packet)
+      setInterval(fetchLeaderboard, 5000);
     </script>
   </body>
 </html>

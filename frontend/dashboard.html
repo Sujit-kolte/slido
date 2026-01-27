@@ -2,269 +2,502 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Admin Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard | GDG Quiz</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
     <style>
-      body {
-        font-family: "Segoe UI", sans-serif;
-        background: #f3f4f6;
-        margin: 0;
-        padding: 20px;
-      }
-      .container {
-        max-width: 950px;
-        margin: auto;
-      }
-      .card {
-        background: white;
-        padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-      }
-      input {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 10px;
-        box-sizing: border-box;
-      }
-      button {
-        padding: 8px 14px;
-        border: none;
-        border-radius: 6px;
-        cursor: pointer;
-        font-weight: bold;
-        margin-right: 5px;
+      @import url("https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@300;400;500;700&display=swap");
+
+      :root {
+        --google-blue: #4285f4;
+        --google-red: #ea4335;
+        --google-yellow: #fbbc05;
+        --google-green: #34a853;
+        --white: #ffffff;
+        --bg-light: #f8f9fa;
+        --text-primary: #202124;
+        --text-secondary: #5f6368;
+        --border-light: #dadce0;
+        --shadow-sm:
+          0 1px 2px 0 rgba(60, 64, 67, 0.3),
+          0 1px 3px 1px rgba(60, 64, 67, 0.15);
+        --shadow-md:
+          0 1px 3px 0 rgba(60, 64, 67, 0.3),
+          0 4px 8px 3px rgba(60, 64, 67, 0.15);
       }
 
-      /* COLORS */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Roboto", sans-serif;
+        background: var(--bg-light);
+        color: var(--text-primary);
+        height: 100vh;
+        overflow: hidden; /* Prevent full page scroll */
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        height: 100vh;
+      }
+
+      /* --- SIDEBAR --- */
+      .sidebar {
+        background: var(--white);
+        border-right: 1px solid var(--border-light);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+
+      .sidebar-header {
+        padding: 24px;
+        border-bottom: 1px solid var(--border-light);
+      }
+
+      .logo {
+        font-family: "Google Sans", sans-serif;
+        font-size: 1.25rem;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(
+          135deg,
+          var(--google-blue),
+          var(--google-green)
+        );
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 18px;
+      }
+
+      .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+      }
+
+      /* --- MAIN CONTENT --- */
+      .main-content {
+        padding: 32px 40px;
+        overflow-y: auto;
+        background-image:
+          linear-gradient(
+            to right,
+            rgba(66, 133, 244, 0.05) 1px,
+            transparent 1px
+          ),
+          linear-gradient(
+            to bottom,
+            rgba(66, 133, 244, 0.05) 1px,
+            transparent 1px
+          );
+        background-size: 40px 40px;
+      }
+
+      /* --- STATS GRID --- */
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 32px;
+      }
+
+      .stat-card {
+        background: var(--white);
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s;
+      }
+      .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+      }
+
+      .stat-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+      }
+      .stat-card:nth-child(1)::before {
+        background: var(--google-blue);
+      }
+      .stat-card:nth-child(2)::before {
+        background: var(--google-green);
+      }
+      .stat-card:nth-child(3)::before {
+        background: var(--google-yellow);
+      }
+
+      .stat-value {
+        font-family: "Google Sans";
+        font-size: 2rem;
+        font-weight: 700;
+        margin-top: 10px;
+      }
+      .stat-label {
+        font-size: 0.875rem;
+        color: var(--text-secondary);
+        font-weight: 500;
+      }
+
+      /* --- CARDS & INPUTS --- */
+      .card {
+        background: var(--white);
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 20px;
+      }
+
+      h2,
+      h3 {
+        font-family: "Google Sans";
+        color: var(--text-primary);
+        margin-bottom: 16px;
+      }
+
+      input {
+        width: 100%;
+        padding: 12px 16px;
+        margin-bottom: 12px;
+        border: 2px solid var(--border-light);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        transition: 0.2s;
+        font-family: "Roboto", sans-serif;
+      }
+      input:focus {
+        outline: none;
+        border-color: var(--google-blue);
+      }
+
+      /* --- BUTTONS --- */
+      button {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        font-family: "Google Sans";
+        transition: 0.2s;
+      }
+      button:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      button:disabled {
+        background: #ccc !important;
+        cursor: not-allowed;
+      }
+
       .btn-blue {
-        background: #2563eb;
+        background: var(--google-blue);
         color: white;
       }
       .btn-green {
-        background: #059669;
+        background: var(--google-green);
         color: white;
       }
       .btn-red {
-        background: #dc2626;
-        color: white;
-      }
-      .btn-purple {
-        background: #9333ea;
-        color: white;
-      }
-      .btn-orange {
-        background: #f59e0b;
+        background: var(--google-red);
         color: white;
       }
       .btn-grey {
         background: #e5e7eb;
+        color: var(--text-primary);
       }
 
-      /* LAYOUTS */
-      .session-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 15px;
-        border-bottom: 1px solid #eee;
+      /* --- SESSION LIST ITEMS --- */
+      .session-item {
+        padding: 16px;
+        border: 1px solid var(--border-light);
+        border-radius: 12px;
+        margin-bottom: 12px;
+        background: var(--white);
+        transition: 0.2s;
       }
-      .session-row:last-child {
-        border-bottom: none;
+      .session-item:hover {
+        border-color: var(--google-blue);
+        box-shadow: var(--shadow-sm);
       }
+      .session-item.active {
+        border-left: 4px solid var(--google-green);
+        background: #f0fdf4;
+      }
+
       .badge {
-        padding: 3px 8px;
-        font-size: 12px;
-        border-radius: 5px;
-        margin-left: 10px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
       }
-      .WAITING {
-        background: #fde68a;
+      .badge.WAITING {
+        background: #fef3c7;
+        color: #d97706;
       }
-      .ACTIVE {
-        background: #bbf7d0;
+      .badge.ACTIVE {
+        background: #dcfce7;
+        color: #166534;
       }
-      .COMPLETED {
-        background: #e5e7eb;
+      .badge.COMPLETED {
+        background: #f3f4f6;
+        color: #374151;
       }
 
+      /* --- QUESTION MANAGER --- */
       .question-box {
-        border: 1px solid #e5e7eb;
-        padding: 15px;
-        margin-bottom: 10px;
-        background: #fff;
-        border-radius: 8px;
-      }
-      .q-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 10px;
+        border: 1px solid var(--border-light);
+        padding: 20px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        background: white;
       }
       .option-row {
         display: flex;
         gap: 10px;
-        margin-bottom: 6px;
+        margin-bottom: 8px;
         align-items: center;
       }
 
-      /* MODAL */
-      .modal {
-        display: none;
-        position: fixed;
-        z-index: 100;
-        left: 0;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.5);
-      }
-      .modal-content {
-        background-color: #111827;
-        margin: 15% auto;
-        padding: 20px;
-        width: 300px;
-        border-radius: 15px;
-        color: white;
+      /* --- PLACEHOLDER --- */
+      .empty-state {
         text-align: center;
+        padding: 60px;
+        color: var(--text-secondary);
       }
-      .preview-option {
-        background: #1f2937;
-        padding: 10px;
-        margin: 5px 0;
-        border-radius: 8px;
-        border: 1px solid #374151;
-        text-align: left;
+      .empty-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+        opacity: 0.3;
       }
-      .close {
-        float: right;
-        font-size: 28px;
-        cursor: pointer;
-        color: #ccc;
+
+      @media (max-width: 768px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          display: none;
+        } /* Hide sidebar on mobile for now */
       }
     </style>
   </head>
 
   <body>
-    <div class="container">
-      <h1>🛠 Admin Dashboard</h1>
-
-      <div class="card">
-        <h3>Create New Session</h3>
-        <input id="cTitle" placeholder="Session Title (e.g. JS Quiz)" />
-        <input id="cCode" placeholder="Session Code (e.g. QUIZ101)" />
-        <button class="btn-blue" onclick="createSession()">Create</button>
-      </div>
-
-      <div class="card">
-        <h3>Manage Sessions</h3>
-        <div id="sessionList">Loading...</div>
-      </div>
-
-      <div class="card" id="qManager" style="display: none">
-        <h3>
-          Questions for
-          <span id="targetCodeDisplay" style="color: #2563eb"></span>
-        </h3>
-
-        <div
-          style="
-            background: #f9fafb;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #eee;
-          ">
-          <input
-            id="qText"
-            placeholder="Enter Question Text..."
-            style="font-weight: bold" />
-          <div id="optionsContainer"></div>
-          <button class="btn-grey" onclick="addOptionUI()">+ Add Option</button>
-          <div style="margin-top: 15px">
-            <button id="saveBtn" class="btn-blue" onclick="saveQuestion()">
-              Save Question
-            </button>
-            <button
-              id="cancelEditBtn"
-              class="btn-red"
-              style="display: none"
-              onclick="resetForm()">
-              Cancel Edit
-            </button>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo">
+            <div class="logo-icon">🛠</div>
+            <span>Admin Panel</span>
           </div>
         </div>
 
-        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee" />
-        <div id="existingQuestions"></div>
-      </div>
-    </div>
+        <div class="sidebar-content">
+          <div
+            class="card"
+            style="box-shadow: none; border: 1px solid var(--border-light)">
+            <h3 style="font-size: 1rem">Create Session</h3>
+            <input id="cTitle" placeholder="Title (e.g. JavaScript Quiz)" />
+            <input
+              id="cCode"
+              placeholder="Code (e.g. JS101)"
+              style="text-transform: uppercase" />
+            <button
+              class="btn-blue"
+              style="width: 100%"
+              onclick="createSession()">
+              + New Session
+            </button>
+          </div>
 
-    <div id="previewModal" class="modal">
-      <div class="modal-content">
-        <span class="close" onclick="closePreview()">&times;</span>
-        <h3 style="color: #60a5fa">Mobile Preview</h3>
-        <div
-          id="previewText"
-          style="font-size: 18px; margin-bottom: 20px"></div>
-        <div id="previewOptions"></div>
-      </div>
+          <h4
+            style="
+              margin: 20px 0 10px;
+              color: var(--text-secondary);
+              font-size: 0.85rem;
+              text-transform: uppercase;
+            ">
+            Your Sessions
+          </h4>
+          <div id="sessionList">
+            <div style="text-align: center; padding: 20px; color: #999">
+              Loading...
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Sessions</div>
+            <div class="stat-value" id="statSessions">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Active Questions</div>
+            <div class="stat-value" id="statQuestions">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">System Status</div>
+            <div
+              class="stat-value"
+              style="font-size: 1.5rem; color: var(--google-green)">
+              Online 🟢
+            </div>
+          </div>
+        </div>
+
+        <div id="managerPlaceholder" class="empty-state">
+          <div class="empty-icon">👈</div>
+          <h2>Select a Session</h2>
+          <p>
+            Choose a session from the sidebar to manage questions or start the
+            game.
+          </p>
+        </div>
+
+        <div id="qManager" style="display: none">
+          <div class="card" style="border-top: 4px solid var(--google-blue)">
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+              ">
+              <div>
+                <span style="color: var(--text-secondary); font-size: 0.9rem"
+                  >Managing Session:</span
+                >
+                <h2 style="margin: 0; font-size: 1.8rem" id="targetCodeDisplay">
+                  ...
+                </h2>
+              </div>
+              <button class="btn-grey" onclick="closeManager()">
+                Close Manager
+              </button>
+            </div>
+
+            <div
+              style="
+                background: #f8fafc;
+                padding: 20px;
+                border-radius: 12px;
+                border: 1px dashed var(--border-light);
+              ">
+              <h3 style="font-size: 1.1rem">Add New Question</h3>
+              <input id="qText" placeholder="Type your question here..." />
+              <div id="optionsContainer"></div>
+              <button class="btn-grey" onclick="addOptionUI()">
+                + Add Option
+              </button>
+              <div style="margin-top: 20px; text-align: right">
+                <button class="btn-blue" onclick="saveQuestion()">
+                  Save to Server
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <h3 style="margin-top: 30px">Existing Questions</h3>
+          <div id="existingQuestions"></div>
+        </div>
+      </main>
     </div>
 
     <script>
-      // 🟢 UPDATE THIS URL TO YOUR RENDER URL
-      const API_URL = "https://gdg-quiz-app.onrender.com/api";
+      // 🟢 CONFIGURATION
+      const API_URL = "https://slido-9mg1.onrender.com/api";
+      const SOCKET_URL = "https://slido-9mg1.onrender.com";
+
+      // Auth Check
       const PASSCODE = sessionStorage.getItem("ADMIN_PASSCODE");
-      const socket = io("https://gdg-quiz-app.onrender.com");
+      if (!PASSCODE) window.location.href = "admin.html";
 
+      // Socket
+      const socket = io(SOCKET_URL);
+
+      // State
       let currentSessionCode = null;
-      let editingQuestionId = null;
-      let loadedQuestions = [];
+      let allQuestions = []; // Cache for stats
 
-      if (!PASSCODE) {
-        alert("Login first");
-        location.href = "admin.html";
-      }
+      // --- INITIALIZATION ---
+      loadSessions();
 
-      socket.on("connect", () => console.log("🟢 Admin Connected"));
-
-      /* ================= SESSIONS ================= */
+      /* ========================
+     SESSION MANAGEMENT
+  ======================== */
       async function loadSessions() {
-        const res = await fetch(`${API_URL}/sessions`);
-        const data = await res.json();
-        const list = document.getElementById("sessionList");
-        list.innerHTML = "";
+        try {
+          const res = await fetch(`${API_URL}/sessions`);
+          const data = await res.json();
+          const list = document.getElementById("sessionList");
+          list.innerHTML = "";
 
-        if (!data.data || data.data.length === 0) {
-          list.innerHTML = "<p>No sessions found.</p>";
-          return;
+          // Update Stats
+          document.getElementById("statSessions").innerText =
+            data.data.length || 0;
+
+          data.data.forEach((s) => {
+            const div = document.createElement("div");
+            div.className = `session-item ${s.status === "ACTIVE" ? "active" : ""}`;
+            div.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="font-weight:bold; font-size:1rem;">${s.title}</div>
+            <span class="badge ${s.status}">${s.status}</span>
+          </div>
+          <div style="font-size:0.85rem; color:#666; margin-bottom:12px;">Code: <strong>${s.sessionCode}</strong></div>
+          
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
+            <button class="btn-grey" onclick="openQManager('${s.sessionCode}')">Manage</button>
+            ${
+              s.status === "WAITING" || s.status === "COMPLETED"
+                ? `<button class="btn-green" onclick="startSession('${s._id}', '${s.sessionCode}')">Start</button>`
+                : `<button class="btn-red" onclick="stopSession('${s._id}')">Stop</button>`
+            }
+          </div>
+        `;
+            list.appendChild(div);
+          });
+        } catch (e) {
+          console.error(e);
+          document.getElementById("sessionList").innerHTML =
+            "<p style='color:red; text-align:center'>Server Error</p>";
         }
-
-        data.data.forEach((s) => {
-          const div = document.createElement("div");
-          div.className = "session-row";
-          div.innerHTML = `
-      <div>
-        <div style="font-size:16px; font-weight:bold;">${s.title}</div>
-        <div style="font-size:13px; color:#666;">Code: ${s.sessionCode} <span class="badge ${s.status}">${s.status}</span></div>
-      </div>
-      <div>
-        <button class="btn-grey" onclick="openQManager('${s.sessionCode}')">Questions</button>
-        <button class="btn-green" onclick="startSession('${s._id}', '${s.sessionCode}')">Start</button>
-        <button class="btn-orange" onclick="stopSession('${s._id}')">Stop</button>
-        
-        <button class="btn-purple" onclick="resetSession('${s._id}')" title="Reset Users & Scores">♻️</button>
-        <button class="btn-red" onclick="deleteSession('${s.sessionCode}')" title="Delete Session">🗑️</button>
-      </div>
-    `;
-          list.appendChild(div);
-        });
       }
 
       async function createSession() {
-        const title = document.getElementById("cTitle").value;
-        const code = document.getElementById("cCode").value;
+        const title = document.getElementById("cTitle").value.trim();
+        const code = document
+          .getElementById("cCode")
+          .value.trim()
+          .toUpperCase();
+        if (!title || !code) return alert("Fill all fields");
+
         await fetch(`${API_URL}/sessions`, {
           method: "POST",
           headers: {
@@ -273,13 +506,17 @@
           },
           body: JSON.stringify({ title, sessionCode: code }),
         });
-        loadSessions();
+
         document.getElementById("cTitle").value = "";
         document.getElementById("cCode").value = "";
+        loadSessions();
       }
 
       async function startSession(id, code) {
-        if (!confirm("Start quiz?")) return;
+        if (!confirm(`Start Session ${code}? Players can now see questions.`))
+          return;
+
+        // 1. Update DB Status
         await fetch(`${API_URL}/sessions/${id}/status`, {
           method: "PUT",
           headers: {
@@ -288,14 +525,19 @@
           },
           body: JSON.stringify({ status: "ACTIVE" }),
         });
-        setTimeout(() => socket.emit("admin:start_game", code), 300);
+
+        // 2. Emit Socket Event (Wakes up phones)
+        socket.emit("admin:start_game", code);
+
+        // 3. Open Leaderboard in new tab
         sessionStorage.setItem("SESSION_CODE", code);
         window.open("leaderboard.html", "_blank");
+
         loadSessions();
       }
 
       async function stopSession(id) {
-        if (!confirm("Stop session?")) return;
+        if (!confirm("Stop Session?")) return;
         await fetch(`${API_URL}/sessions/${id}/status`, {
           method: "PUT",
           headers: {
@@ -307,98 +549,84 @@
         loadSessions();
       }
 
-      async function resetSession(id) {
-        if (
-          !confirm(
-            "⚠️ RESET SESSION?\n\nThis will DELETE all users and scores for this session so you can play again.\n\nThe questions will remain.",
-          )
-        )
-          return;
-        await fetch(`${API_URL}/sessions/${id}/data`, {
-          method: "DELETE",
-          headers: { "admin-passcode": PASSCODE },
-        });
-        alert("Session data cleared! Players can join again.");
-        loadSessions();
-      }
-
-   async function deleteSession(sessionCode) {
-  const confirmDelete = confirm(
-    "⚠️ PERMANENT DELETE WARNING ⚠️\n\n" +
-      "This will delete:\n" +
-      "- The Session\n" +
-      "- All Questions\n" +
-      "- All Participants\n" +
-      "- All Responses\n\n" +
-      "Are you sure?"
-  );
-
-  if (!confirmDelete) return;
-
-  try {
-    const res = await fetch(
-`${API_URL}/sessions/code/${sessionCode}/permanent`
-,
-      {
-        method: "DELETE",
-        headers: {
-          "admin-passcode": PASSCODE,
-        },
-      }
-    );
-
-    const data = await res.json();
-
-    if (data.success) {
-      alert("✅ DELETED: " + data.message);
-      loadSessions();
-    } else {
-      alert("❌ Error: " + data.message);
-    }
-  } catch (err) {
-    console.error(err);
-    alert("❌ Network Error: Could not delete session.");
-  }
-}
-
-      /* ================= QUESTION MANAGER ================= */
-      function openQManager(sessionCode) {
-        currentSessionCode = sessionCode;
+      /* ========================
+     QUESTION MANAGEMENT
+  ======================== */
+      function openQManager(code) {
+        currentSessionCode = code;
+        document.getElementById("managerPlaceholder").style.display = "none";
         document.getElementById("qManager").style.display = "block";
-        document.getElementById("targetCodeDisplay").innerText = sessionCode;
-        resetForm();
-        fetchQuestions(sessionCode);
-        document
-          .getElementById("qManager")
-          .scrollIntoView({ behavior: "smooth" });
-      }
+        document.getElementById("targetCodeDisplay").innerText = code;
 
-      function resetForm() {
-        editingQuestionId = null;
+        // Reset inputs
         document.getElementById("qText").value = "";
         document.getElementById("optionsContainer").innerHTML = "";
-        document.getElementById("saveBtn").innerText = "Save Question";
-        document.getElementById("cancelEditBtn").style.display = "none";
         addOptionUI("", true);
         addOptionUI("", false);
+
+        fetchQuestions(code);
+      }
+
+      function closeManager() {
+        document.getElementById("qManager").style.display = "none";
+        document.getElementById("managerPlaceholder").style.display = "block";
+      }
+
+      async function fetchQuestions(code) {
+        const container = document.getElementById("existingQuestions");
+        container.innerHTML = "Loading...";
+
+        const res = await fetch(`${API_URL}/questions/session/${code}`);
+        const data = await res.json();
+
+        // Update Stats
+        document.getElementById("statQuestions").innerText =
+          data.data.length || 0;
+
+        if (!data.data || data.data.length === 0) {
+          container.innerHTML =
+            "<p style='text-align:center; color:#999'>No questions yet.</p>";
+          return;
+        }
+
+        container.innerHTML = data.data
+          .map(
+            (q, i) => `
+      <div class="question-box">
+        <div style="display:flex; justify-content:space-between;">
+          <strong>Q${i + 1}: ${q.questionText}</strong>
+          <button class="btn-red" style="padding:4px 8px; font-size:0.8rem;" onclick="deleteQuestion('${q._id}')">Delete</button>
+        </div>
+        <ul style="margin:10px 0 0 20px; font-size:0.9rem; color:#555;">
+          ${q.options
+            .map(
+              (o) =>
+                `<li style="${o.isCorrect ? "color:var(--google-green); font-weight:bold" : ""}">${o.text} ${o.isCorrect ? "✔" : ""}</li>`,
+            )
+            .join("")}
+        </ul>
+      </div>
+    `,
+          )
+          .join("");
       }
 
       function addOptionUI(text = "", correct = false) {
-        const container = document.getElementById("optionsContainer");
         const div = document.createElement("div");
         div.className = "option-row";
         div.innerHTML = `
-    <input type="radio" name="correctGroup" ${correct ? "checked" : ""} style="width:20px;">
-    <input class="opt-text" placeholder="Option Answer" value="${text}">
-    <button class="btn-red" style="padding:4px 8px;" onclick="this.parentElement.remove()">✕</button>
-  `;
-        container.appendChild(div);
+      <input type="radio" name="correctGroup" ${correct ? "checked" : ""} style="width:20px; margin:0;">
+      <input class="opt-text" placeholder="Option text..." value="${text}" style="margin:0">
+      <button class="btn-red" onclick="this.parentElement.remove()" style="padding:8px;">✕</button>
+    `;
+        document.getElementById("optionsContainer").appendChild(div);
       }
 
       async function saveQuestion() {
         const qText = document.getElementById("qText").value;
         const optRows = document.querySelectorAll(".option-row");
         const options = [];
+
         optRows.forEach((row) => {
           const text = row.querySelector(".opt-text").value;
           const isCorrect = row.querySelector("input[type=radio]").checked;
@@ -406,116 +634,40 @@
         });
 
         if (!qText || options.length < 2)
-          return alert("Need Question + 2 Options");
+          return alert("Question needs text and 2+ options");
         if (!options.some((o) => o.isCorrect))
-          return alert("Select Correct Answer");
+          return alert("Select a correct answer");
 
-        const method = editingQuestionId ? "PUT" : "POST";
-        const url = editingQuestionId
-          ? `${API_URL}/questions/${editingQuestionId}`
-          : `${API_URL}/questions`;
-        const body = {
-          sessionId: currentSessionCode,
-          questionText: qText,
-          options,
-          marks: 10,
-        };
-
-        await fetch(url, {
-          method,
+        await fetch(`${API_URL}/questions`, {
+          method: "POST",
           headers: {
             "Content-Type": "application/json",
             "admin-passcode": PASSCODE,
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            sessionId: currentSessionCode,
+            questionText: qText,
+            options: options,
+            marks: 10,
+          }),
         });
-        resetForm();
-        fetchQuestions(currentSessionCode);
-      }
 
-      async function fetchQuestions(sessionCode) {
-        const res = await fetch(`${API_URL}/questions/session/${sessionCode}`);
-        const data = await res.json();
-        loadedQuestions = data.data || [];
-        const container = document.getElementById("existingQuestions");
-        container.innerHTML = "";
-
-        loadedQuestions.forEach((q, i) => {
-          const div = document.createElement("div");
-          div.className = "question-box";
-          div.innerHTML = `
-      <div class="q-header">
-        <strong>Q${i + 1}: ${q.questionText}</strong>
-        <div>
-          <button class="btn-purple" title="Preview" onclick="previewQuestion('${q._id}')">👁️</button>
-          <button class="btn-grey" title="Move Up" onclick="moveQuestion('${q._id}', 'up')">⬆️</button>
-          <button class="btn-grey" title="Move Down" onclick="moveQuestion('${q._id}', 'down')">⬇️</button>
-          <button class="btn-blue" title="Edit" onclick="loadForEdit('${q._id}')">✏️</button>
-          <button class="btn-red" title="Delete" onclick="deleteQuestion('${q._id}')">🗑️</button>
-        </div>
-      </div>
-      <ul style="margin:0; padding-left:20px;">
-        ${q.options.map((o) => `<li style="${o.isCorrect ? "color:#059669;font-weight:bold" : ""}">${o.text}</li>`).join("")}
-      </ul>
-    `;
-          container.appendChild(div);
-        });
-      }
-
-      function loadForEdit(id) {
-        const q = loadedQuestions.find((item) => item._id === id);
-        if (!q) return;
-        editingQuestionId = q._id;
-        document.getElementById("qText").value = q.questionText;
+        // Refresh
+        document.getElementById("qText").value = "";
         document.getElementById("optionsContainer").innerHTML = "";
-        q.options.forEach((o) => addOptionUI(o.text, o.isCorrect));
-        document.getElementById("saveBtn").innerText = "Update Question";
-        document.getElementById("cancelEditBtn").style.display = "inline-block";
-        document.getElementById("qManager").scrollIntoView();
-      }
-
-      async function moveQuestion(id, dir) {
-        await fetch(`${API_URL}/questions/reorder/all`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "admin-passcode": PASSCODE,
-          },
-          body: JSON.stringify({ questionId: id, direction: dir }),
-        });
+        addOptionUI("", true);
+        addOptionUI("", false);
         fetchQuestions(currentSessionCode);
       }
-
-    
 
       async function deleteQuestion(id) {
-        if (!confirm("Delete?")) return;
+        if (!confirm("Delete this question?")) return;
         await fetch(`${API_URL}/questions/${id}`, {
           method: "DELETE",
           headers: { "admin-passcode": PASSCODE },
         });
         fetchQuestions(currentSessionCode);
       }
-
-      function previewQuestion(id) {
-        const q = loadedQuestions.find((item) => item._id === id);
-        if (!q) return;
-        document.getElementById("previewText").innerText = q.questionText;
-        const optDiv = document.getElementById("previewOptions");
-        optDiv.innerHTML = "";
-        q.options.forEach((o) => {
-          const d = document.createElement("div");
-          d.className = "preview-option";
-          d.innerText = o.text;
-          if (o.isCorrect) d.style.borderColor = "#059669";
-          optDiv.appendChild(d);
-        });
-        document.getElementById("previewModal").style.display = "block";
-      }
-      function closePreview() {
-        document.getElementById("previewModal").style.display = "none";
-      }
-      loadSessions();
     </script>
   </body>
 </html>

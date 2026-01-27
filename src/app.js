@@ -3,21 +3,35 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import routes from "./routes/routes.js";
+// 🟢 STEP 1: Import the Admin Routes file
+import adminRoutes from "./routes/admin.routes.js";
 import errorHandler from "./middlewares/error.middleware.js";
 
 const app = express();
 
+// 🟢 CRITICAL FOR RENDER DEPLOYMENT
+// This ensures Rate Limiting works correctly behind Render's load balancer
+app.set("trust proxy", 1);
+
 app.use(helmet());
-app.use(cors({ origin: "*"}));
+app.use(cors({ origin: "*" }));
 
 // ✅ EVENT SAFE RATE LIMIT
-app.use(rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  max: 1000,              // ~500 users safe
-  message: "Too many requests, try again shortly"
-}));
+app.use(
+  rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 1000, // ~500 users safe
+    message: "Too many requests, try again shortly",
+  }),
+);
 
 app.use(express.json({ limit: "10kb" }));
+
+// 🟢 STEP 2: Connect the Admin Routes
+// This tells the server: "If a link starts with /api/admin, look in adminRoutes"
+app.use("/api/admin", adminRoutes);
+
+// Connect standard routes
 app.use("/api", routes);
 
 app.get("/", (req, res) => {
